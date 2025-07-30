@@ -21,7 +21,6 @@ class ExpenseFlowViewModel(
         _splitBetweenMap.value = map
     }
 
-
     // ------------------- Split Type -------------------
     var splitType by mutableStateOf("equally")
         private set
@@ -55,6 +54,10 @@ class ExpenseFlowViewModel(
 
     fun setSelectedMembers(members: List<User>) {
         _selectedMembers.value = members
+    }
+
+    fun clearSelectedMembers() {
+        _selectedMembers.value = emptyList()
     }
 
     // ------------------- Total Amount -------------------
@@ -127,10 +130,11 @@ class ExpenseFlowViewModel(
         amount = ""
         title = ""
         note = ""
-        // Don't clear selectedMembers here
+        // ✅ Do NOT clear selectedMembers here
     }
-    fun clear() {
+
+    // ✅ Only call this if you truly want to remove selected members manually
+    fun clearSelectedMembersOnly() {
         _selectedMembers.value = emptyList()
-        // Also clear other fields if needed
     }
 }

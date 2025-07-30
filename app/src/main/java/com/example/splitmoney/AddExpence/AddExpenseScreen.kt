@@ -46,28 +46,26 @@ fun AddExpenseScreen(
     val context = LocalContext.current
     val selectedPayerId by viewModel.paidBy.collectAsState()
     val whoPaidMap by viewModel.whoPaidMap.collectAsState()
+    val currentUser = viewModel.currentUser
+    val selectedMembersFromNav = navController.previousBackStackEntry?.savedStateHandle?.get<List<User>>("selectedMembers")
+    val updatedMembers = remember {
+        val base = selectedMembersFromNav ?: viewModel.selectedMembers.value
+        if (base.any { it.uid == currentUser.uid }) base else base + currentUser
+    }
 
     var description by remember { mutableStateOf(viewModel.title) }
     val amount = viewModel.amount
     var hasReset by rememberSaveable { mutableStateOf(false) }
 
-    val selectedMembersFromNav = navController.previousBackStackEntry
-        ?.savedStateHandle
-        ?.get<List<User>>("selectedMembers") ?: emptyList()
-
-    val currentUser = viewModel.currentUser
-    val updatedMembers = remember(selectedMembersFromNav) {
-        if (selectedMembersFromNav.any { it.uid == currentUser.uid }) selectedMembersFromNav else selectedMembersFromNav + currentUser
-    }
     LaunchedEffect(Unit) {
-        // Fetch group members from Firebase or NavArgs (if passed)
         viewModel.setSelectedMembers(updatedMembers)
     }
+
     LaunchedEffect(shouldReset) {
         if (shouldReset && !hasReset) {
             viewModel.reset()
             description = ""
-            viewModel.setSelectedMembers(updatedMembers) // ✅ Ensure selected members are always updated
+            viewModel.setSelectedMembers(updatedMembers)
             hasReset = true
         } else if (!hasReset) {
             description = viewModel.title
@@ -140,8 +138,7 @@ fun AddExpenseScreen(
             )
         }
     }
-} // The rest of your components stay unchanged
-
+}
 
 @Composable
 fun WithYouAndSection(groupName: String, groupType: String) {
@@ -406,6 +403,3 @@ fun generatePayerSplitSentence(
 
     return PayerSplitText(payerName, splitLabel)
 }
-
-
-

@@ -2,6 +2,7 @@ package com.example.splitmoney.groupindividualhome
 
 import User
 import android.annotation.SuppressLint
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import com.example.splitmoney.AddExpence.ExpenseFlowViewModel
 import com.example.splitmoney.dataclass.Expense
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
@@ -71,6 +73,7 @@ fun GroupDetailScreen(
     viewModel: GroupDetailViewModel,
     groupName: String,
     groupType: String,
+    expenseFlowViewModel: ExpenseFlowViewModel,
     onBack: () -> Unit,
     onAddMembers: () -> Unit,
     onAddExpense: () -> Unit,
@@ -95,8 +98,12 @@ fun GroupDetailScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    println("FAB clicked")
-                    onAddExpense()
+                    // ✅ Store members directly into ExpenseFlowViewModel
+                    expenseFlowViewModel.setSelectedMembers(members)
+
+                    val encodedName = Uri.encode(groupName)
+                    val encodedType = Uri.encode(groupType)
+                    navController.navigate("add_expense?groupId=$groupId&groupName=$encodedName&groupType=$encodedType&reset=true")
                 },
                 text = { Text("Add expense") },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },

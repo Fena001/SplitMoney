@@ -117,7 +117,7 @@ fun WhoPaidScreen(
                         currentUserUid = currentUserUid,
                         onClick = { selectedPayer = user.uid },
 
-                    )
+                        )
                 }
 
                 item {

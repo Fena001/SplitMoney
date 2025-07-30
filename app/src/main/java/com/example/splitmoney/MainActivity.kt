@@ -86,24 +86,23 @@ class MainActivity : ComponentActivity() {
                         groupName = groupName,
                         groupType = groupType,
                         viewModel = viewModel,
+                        expenseFlowViewModel = expenseFlowViewModel,
                         onBack = { navController.popBackStack() },
                         onAddMembers = {
                             val encodedName = Uri.encode(groupName)
                             val encodedType = Uri.encode(groupType)
                             navController.navigate("select_contacts/$groupId/$encodedName/$encodedType")
                         },
-                        onShareGroupLink = {},
                         onAddExpense = {
                             val members = viewModel.members.value
-
-                            // Always reset before navigating
-                            expenseFlowViewModel.clear() // Optional, if you want to fully reset previous state
+                            navController.currentBackStackEntry?.savedStateHandle?.set("selectedMembers", members)
                             expenseFlowViewModel.setSelectedMembers(members)
 
                             val encodedName = Uri.encode(groupName)
                             val encodedType = Uri.encode(groupType)
                             navController.navigate("add_expense?groupId=$groupId&groupName=$encodedName&groupType=$encodedType&reset=true")
-                        }
+                        },
+                        onShareGroupLink = {}
                     )
                 }
 
@@ -146,11 +145,13 @@ class MainActivity : ComponentActivity() {
                     AddExpenseScreen(
                         navController = navController,
                         onBack = { navController.popBackStack() },
-                        onSave = { val encodedName = Uri.encode(groupName)
+                        onSave = {
+                            val encodedName = Uri.encode(groupName)
                             val encodedType = Uri.encode(groupType)
                             navController.navigate("group_detail/$groupId/$encodedName/$encodedType") {
-                                popUpTo("home") { inclusive = false } // optional backstack cleanup
-                            } },
+                                popUpTo("home") { inclusive = false }
+                            }
+                        },
                         groupId = groupId,
                         groupName = groupName,
                         groupType = groupType,
