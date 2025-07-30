@@ -41,7 +41,6 @@ fun EnterPaidAmountsScreen(
     viewModel: ExpenseFlowViewModel
 ) {
     val paidAmounts = remember { mutableStateMapOf<String, String>() }
-    val enterPaidViewModel: EnterPaidAmountsViewModel = viewModel()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -71,36 +70,20 @@ fun EnterPaidAmountsScreen(
                             if (amountLeft == 0.0) {
                                 val resultMap = paidAmounts.mapValues { it.value.trim().toDoubleOrNull() ?: 0.0 }
 
-                                enterPaidViewModel.saveMultiplePayers(
-                                    groupId = groupId,
-                                    expenseId = expenseId,
-                                    totalAmount = totalExpenseAmount,
-                                    paymentsMap = resultMap,
-                                    onSuccess = {
-                                        navController.previousBackStackEntry?.savedStateHandle?.set("selectedPayerId", "multiple")
-                                        navController.previousBackStackEntry?.savedStateHandle?.set("whoPaid", resultMap)
+                                // ✅ Store in ViewModel
+                                viewModel.setPaidBy("multiple")
+                                viewModel.setWhoPaidMap(resultMap)
 
-                                        val encodedName = Uri.encode(groupName)
-                                        val encodedType = Uri.encode(groupType)
-                                        navController.navigate("add_expense?groupId=$groupId&groupName=$encodedName&groupType=$encodedType&reset=false") {
-                                            popUpTo("who_paid?groupId=$groupId&groupName=$encodedName&groupType=$encodedType") {
-                                                inclusive = true
-                                            }
-                                        }
-                                    },
-                                    onFailure = {
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("Failed to save: ${it.message}")
-                                        }
-                                    }
-                                )
+                                // ✅ Go back to AddExpenseScreen or wherever you want
+                                navController.popBackStack() // or navigate to summary screen if needed
                             } else {
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar("Amounts don't match. Please check.")
                                 }
                             }
                         }
-                    ) {
+                    )
+                    {
                         Icon(Icons.Default.Check, contentDescription = "Done", tint = Color.White)
                     }
                 },

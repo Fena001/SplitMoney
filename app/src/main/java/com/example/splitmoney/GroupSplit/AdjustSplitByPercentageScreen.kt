@@ -1,7 +1,6 @@
 package com.example.splitmoney.GroupSplit
 
 import User
-import android.R.attr.singleLine
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -45,7 +44,12 @@ fun SplitByPercentageTab(
     LaunchedEffect(Unit) {
         viewModel.updateSplitType("by percentages")
     }
-    val percentageMap = remember { mutableStateMapOf<String, String>() }
+    val percentageMap = remember(members) {
+        mutableStateMapOf<String, String>().apply {
+            members.forEach { this[it.uid] = "" }
+        }
+    }
+
 
     val totalPercent = calculateTotalPercentage(percentageMap)
     val isValid = isPercentageValid(percentageMap)
@@ -124,7 +128,7 @@ fun SplitByPercentageTab(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "₹${(percentage.toFloatOrNull() ?: 0f) * totalAmount / 100}",
+                            text = "₹%.2f".format((percentage.toDoubleOrNull() ?: 0.0) * totalAmount / 100),
                             color = Color.Gray,
                             fontSize = 13.sp
                         )
@@ -145,7 +149,7 @@ fun SplitByPercentageTab(
                         TextField(
                             value = percentage,
                             onValueChange = { newValue ->
-                                if (newValue.all { it.isDigit() } && (newValue.toFloatOrNull() ?: 0f) <= 100) {
+                                if (newValue.matches(Regex("^\\d{0,3}(\\.\\d{0,2})?$")) && (newValue.toFloatOrNull() ?: 0f) <= 100) {
                                     percentageMap[member.uid] = newValue
                                 }
                             },
@@ -186,8 +190,9 @@ fun SplitByPercentageTab(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
+            val isDone = isApproximatelyEqual(totalEnteredPercentage, 100.0)
             Text(
-                text = "${(100 - totalEnteredPercentage).toInt()}% left",
+                text = if (isDone) "All set!" else "${(100 - totalEnteredPercentage).toInt()}% left",
                 color = Color.LightGray,
                 fontSize = 14.sp
             )

@@ -88,7 +88,7 @@ fun SplitEquallyTab(
 
         LazyColumn(
             modifier = Modifier
-                .weight(1f, fill = false)
+                .weight(1f, fill = true)
                 .padding(horizontal = 16.dp)
         ) {
             items(members) { member ->
@@ -162,7 +162,7 @@ fun SplitEquallyTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (allSelected) "None" else "All",
+                    text = if (allSelected) "Deselect All" else "Select All",
                     color = Color.White,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(end = 8.dp)

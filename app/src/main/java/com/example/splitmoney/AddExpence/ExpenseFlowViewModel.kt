@@ -14,6 +14,13 @@ class ExpenseFlowViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    private val _splitBetweenMap = MutableStateFlow<Map<String, Double>>(emptyMap())
+    val splitBetweenMap: StateFlow<Map<String, Double>> = _splitBetweenMap
+
+    fun setSplitBetweenMap(map: Map<String, Double>) {
+        _splitBetweenMap.value = map
+    }
+
 
     // ------------------- Split Type -------------------
     var splitType by mutableStateOf("equally")
@@ -66,6 +73,10 @@ class ExpenseFlowViewModel(
         _splitMap.value = map
     }
 
+    var expenseId: String
+        get() = savedStateHandle["expenseId"] ?: System.currentTimeMillis().toString()
+        set(value) { savedStateHandle["expenseId"] = value }
+
     // ------------------- Paid By -------------------
     private val _paidBy = MutableStateFlow<String?>(null) // UID of payer or "multiple"
     val paidBy: StateFlow<String?> = _paidBy
@@ -108,7 +119,6 @@ class ExpenseFlowViewModel(
 
     // ------------------- Reset -------------------
     fun reset() {
-        _selectedMembers.value = emptyList()
         _totalAmount.value = 0.0
         _splitMap.value = emptyMap()
         _paidBy.value = null
@@ -117,8 +127,8 @@ class ExpenseFlowViewModel(
         amount = ""
         title = ""
         note = ""
+        // Don't clear selectedMembers here
     }
-
     fun clear() {
         _selectedMembers.value = emptyList()
         // Also clear other fields if needed

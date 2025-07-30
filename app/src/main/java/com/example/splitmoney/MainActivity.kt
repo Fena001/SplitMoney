@@ -20,6 +20,7 @@ import com.example.splitmoney.AddGroup.CreateGroupScreen
 import com.example.splitmoney.FriendAddExpenceScreen.FriendAddExpenseScreen
 import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 import com.example.splitmoney.GroupContacts.SelectContactsScreen
+import com.example.splitmoney.GroupExpenseSummary.ExpenseSummaryScreen
 import com.example.splitmoney.GroupSplit.AdjustSplitScreen
 import com.example.splitmoney.Home.HomeScreen
 import com.example.splitmoney.Home.HomeViewModel
@@ -38,7 +39,7 @@ import com.example.splitmoney.groupindividualhome.GroupDetailViewModelFactory
 import com.example.splitmoney.signupLogin.AuthChoiceScreen
 import com.example.splitmoney.signupLogin.SignUpScreen
 import com.example.splitmoney.signupLogin.SplashScreen
-import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.database.FirebaseDatabase
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +50,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
             val expenseFlowViewModel: ExpenseFlowViewModel = viewModel()
-            val firestore = FirebaseFirestore.getInstance()
 
             NavHost(navController = navController, startDestination = "splash") {
                 composable("splash") { SplashScreen(navController) }
@@ -215,7 +215,6 @@ class MainActivity : ComponentActivity() {
                         expenseId = expenseId,
                         navController = navController,
                         onBack = { navController.popBackStack() },
-                        onConfirm = {},
                         viewModel = expenseFlowViewModel
                     )
                 }
@@ -239,14 +238,14 @@ class MainActivity : ComponentActivity() {
                     val previousHandle = navController.previousBackStackEntry?.savedStateHandle
                     val expenseId = previousHandle?.get<String>("expenseId") ?: ""
                     val paidByMap = previousHandle?.get<Map<String, Double>>("whoPaid")
-                    val paidById = previousHandle?.get<String>("paidById") ?: ""
+                    val paidById = previousHandle?.get<String>("selectedPayerId") ?: ""
                     val expenseTitle = previousHandle?.get<String>("expenseTitle") ?: ""
 
                     AdjustSplitScreen(
                         navController = navController,
                         people = members,
-                        groupId = groupId,               // ✅ Add this
-                        groupName = groupName,           // ✅ Add this
+                        groupId = groupId,
+                        groupName = groupName,
                         groupType = groupType,
                         totalAmount = totalAmount,
                         onDone = { splitMap ->
@@ -264,11 +263,10 @@ class MainActivity : ComponentActivity() {
                             if (paidByMap != null) expense["paidBy"] = paidByMap
                             else expense["paidById"] = paidById
 
-                            firestore.collection("groups")
-                                .document(groupId)
-                                .collection("expenses")
-                                .document(expenseId)
-                                .set(expense)
+                            val database = FirebaseDatabase.getInstance().reference
+                            val expenseRef = database.child("groups").child(groupId).child("expenses").child(expenseId)
+
+                            expenseRef.setValue(expense)
                                 .addOnSuccessListener {
                                     val encodedGroupName = Uri.encode(groupName)
                                     val encodedGroupType = Uri.encode(groupType)
@@ -283,6 +281,28 @@ class MainActivity : ComponentActivity() {
                         viewModel = expenseFlowViewModel
                     )
                 }
+
+                composable(
+                    "expense_summary/{groupId}/{groupName}/{groupType}",
+                    arguments = listOf(
+                        navArgument("groupId") { type = NavType.StringType },
+                        navArgument("groupName") { type = NavType.StringType },
+                        navArgument("groupType") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val groupId = backStackEntry.arguments?.getString("groupId") ?: ""
+                    val groupName = backStackEntry.arguments?.getString("groupName") ?: ""
+                    val groupType = backStackEntry.arguments?.getString("groupType") ?: ""
+
+                    ExpenseSummaryScreen(
+                        navController = navController,
+                        viewModel = expenseFlowViewModel,
+                        groupId = groupId,
+                        groupName = groupName,
+                        groupType = groupType
+                    )
+                }
+
                 composable("contact_picker") {
                     ContactPickerScreen(navController = navController)
                 }

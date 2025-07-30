@@ -43,7 +43,12 @@ fun SplitUnequallyTab(
     LaunchedEffect(Unit) {
         viewModel.updateSplitType("unequally")
     }
-    var amounts by remember { mutableStateOf(members.associate { it.uid to "" }.toMutableMap()) }
+    val amounts = remember(members) {
+        mutableStateMapOf<String, String>().apply {
+            members.forEach { this[it.uid] = "" }
+        }
+    }
+
 
     val enteredSum = amounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
     val remaining = totalAmount - enteredSum
@@ -173,10 +178,8 @@ fun SplitUnequallyTab(
                             TextField(
                                 value = amounts[member.uid] ?: "",
                                 onValueChange = { newValue ->
-                                    if (newValue.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                                        amounts = amounts.toMutableMap().apply {
-                                            this[member.uid] = newValue
-                                        }
+                                    if (newValue.matches(Regex("^\\d{0,7}(\\.\\d{0,2})?$"))) {
+                                        amounts[member.uid] = newValue
                                     }
                                 },
                                 placeholder = { Text("0.00", color = Color.LightGray) },
@@ -193,7 +196,9 @@ fun SplitUnequallyTab(
                                 keyboardOptions = KeyboardOptions.Default.copy(
                                     keyboardType = KeyboardType.Decimal
                                 ),
-                                modifier = Modifier.width(70.dp)
+                                modifier = Modifier
+                                    .widthIn(min = 70.dp, max = 100.dp)
+
                             )
                         }
 

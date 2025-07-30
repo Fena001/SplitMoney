@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavController
 import com.example.splitmoney.AddExpence.ExpenseFlowViewModel
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,7 +90,7 @@ fun AdjustSplitScreen(
                             return@IconButton
                         }
 
-                        val finalSplitMap = when (selectedTab) {
+                        val finalSplitMap: Map<String, Double> = when (selectedTab) {
                             0 -> selectedMembers.filterValues { it }.mapValues { perPersonAmount }
                             1 -> unequalAmounts.mapValues { it.value.toDoubleOrNull() ?: 0.0 }
                             2 -> percentageSplits.mapValues {
@@ -99,17 +100,16 @@ fun AdjustSplitScreen(
                             else -> emptyMap()
                         }
 
-                        // ✅ Save the split map persistently in ViewModel
+                        // ✅ Save in ViewModel
                         viewModel.setSplitMap(finalSplitMap)
+                        viewModel.setSplitBetweenMap(finalSplitMap)
 
-                        // ✅ Navigate back to AddExpense screen
-                        navController.navigate(
-                            "add_expense?groupId=$groupId&groupName=$encodedGroupName&groupType=$encodedGroupType&reset=false"
-                        ) {
-                            popUpTo("adjust_split?groupId=$groupId&groupName=$encodedGroupName&groupType=$encodedGroupType") {
-                                inclusive = true
-                            }
-                        }
+                        // ✅ Create Expense object
+                        val encodedGroupName = Uri.encode(groupName)
+                        val encodedGroupType = Uri.encode(groupType)
+
+                        navController.navigate("expense_summary/$groupId/$encodedGroupName/$encodedGroupType")
+
                     }) {
                         Icon(Icons.Default.Check, contentDescription = "Done")
                     }

@@ -59,7 +59,10 @@ fun AddExpenseScreen(
     val updatedMembers = remember(selectedMembersFromNav) {
         if (selectedMembersFromNav.any { it.uid == currentUser.uid }) selectedMembersFromNav else selectedMembersFromNav + currentUser
     }
-
+    LaunchedEffect(Unit) {
+        // Fetch group members from Firebase or NavArgs (if passed)
+        viewModel.setSelectedMembers(updatedMembers)
+    }
     LaunchedEffect(shouldReset) {
         if (shouldReset && !hasReset) {
             viewModel.reset()

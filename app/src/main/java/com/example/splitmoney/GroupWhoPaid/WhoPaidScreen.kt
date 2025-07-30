@@ -40,7 +40,6 @@ fun WhoPaidScreen(
     expenseId: String,
     viewModel: ExpenseFlowViewModel
 ) {
-    val whoPaidViewModel: WhoPaidViewModel = viewModel()
     val currentUserUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
     var selectedPayer by remember { mutableStateOf(currentUserUid ?: "") }
 
@@ -67,54 +66,38 @@ fun WhoPaidScreen(
                                     it.uid to (totalAmount / members.size).toFloat()
                                 }
 
-                                // 🔁 Update ViewModel with dummy split
                                 viewModel.setWhoPaid(
                                     uid = "multiple",
                                     map = dummyWhoPaid.mapValues { it.value.toDouble() }
                                 )
 
-                                // Navigate to EnterPaidAmountsScreen
                                 navController.currentBackStackEntry?.savedStateHandle?.apply {
+                                    // REMOVE expenseId from here (handled by ViewModel)
                                     set("enterPaidMembers", members)
                                     set("enterPaidAmount", totalAmount)
-                                    set("expenseId", expenseId)
                                     set("groupId", groupId)
                                     set("groupName", groupName)
                                     set("groupType", groupType)
-                                    set("selectedPayerId", "multiple")
                                     set("whoPaid", dummyWhoPaid)
                                 }
+
                                 navController.navigate("enter_paid_amount/$groupId/$groupName/$groupType")
                             } else {
-                                whoPaidViewModel.saveSinglePayer(
-                                    expenseId = expenseId,
-                                    userId = selectedPayer,
-                                    totalAmount = totalAmount,
-                                    onSuccess = {
-                                        Toast.makeText(context, "Saved successfully", Toast.LENGTH_SHORT).show()
-
-                                        // 🔁 Update ViewModel with single payer
-                                        navController.previousBackStackEntry?.savedStateHandle?.apply {
-                                            set("selectedPayerId", selectedPayer)
-                                            set("whoPaid", mapOf(selectedPayer to totalAmount.toFloat()))
-                                        }
-                                        viewModel.setWhoPaid(
-                                            uid = selectedPayer,
-                                            map = mapOf(selectedPayer to totalAmount.toDouble())
-                                        )
-
-
-                                        navController.popBackStack()
-                                    },
-                                    onFailure = {
-                                        Toast.makeText(context, "Failed to save: ${it.message}", Toast.LENGTH_SHORT)
-                                            .show()
-                                    },
-                                    groupId = groupId,
+                                viewModel.setWhoPaid(
+                                    uid = selectedPayer,
+                                    map = mapOf(selectedPayer to totalAmount.toDouble())
                                 )
+
+                                navController.previousBackStackEntry?.savedStateHandle?.apply {
+                                    // REMOVE: set("expenseId", ...)
+                                    set("whoPaid", mapOf(selectedPayer to totalAmount.toFloat()))
+                                }
+
+                                navController.popBackStack()
                             }
                         }
-                    }) {
+                    })
+                    {
                         Text("Done", color = Color.White)
                     }
                 },
