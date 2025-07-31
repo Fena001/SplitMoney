@@ -3,6 +3,7 @@ package com.example.splitmoney.GroupSplit
 import SplitEquallyTab
 import User
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -17,7 +18,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavController
 import com.example.splitmoney.AddExpence.ExpenseFlowViewModel
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.splitmoney.Calculation.parsePercentageSplit
+import java.math.BigDecimal
+import java.math.RoundingMode
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,9 +28,9 @@ import kotlin.math.abs
 fun AdjustSplitScreen(
     navController: NavController,
     people: List<User>,
-    groupId: String,       // <-- NEW
-    groupName: String,     // <-- NEW
-    groupType: String,     // <-- NEW
+    groupId: String,
+    groupName: String,
+    groupType: String,
     totalAmount: Double,
     onDone: (Map<String, Double>) -> Unit = {},
     viewModel: ExpenseFlowViewModel,
@@ -45,10 +48,9 @@ fun AdjustSplitScreen(
     val perPersonAmount = if (selectedCount > 0) totalAmount / selectedCount else 0.0
 
     val unequalAmounts = remember { mutableStateMapOf<String, String>() }
-    val percentageSplits = remember { mutableStateMapOf<String, String>() }
+    val percentageMap = remember { mutableStateMapOf<String, String>() }
 
     val context = LocalContext.current
-    val savedStateHandle = navController.previousBackStackEntry?.savedStateHandle
 
     val encodedGroupName = Uri.encode(groupName)
     val encodedGroupType = Uri.encode(groupType)
@@ -64,6 +66,10 @@ fun AdjustSplitScreen(
                 },
                 actions = {
                     IconButton(onClick = {
+                        Log.d("SplitDebug", "Selected Tab: $selectedTab")
+                        Log.d("SplitDebug", "Unequal Amounts Map: $unequalAmounts")
+                        Log.d("SplitDebug", "Total Amount: $totalAmount")
+
                         if (groupId.isBlank() || groupName.isBlank() || groupType.isBlank()) {
                             Toast.makeText(context, "Group information missing.", Toast.LENGTH_SHORT).show()
                             return@IconButton
@@ -72,7 +78,7 @@ fun AdjustSplitScreen(
                         val isValid = when (selectedTab) {
                             0 -> selectedCount > 0
                             1 -> isTotalValid(unequalAmounts, totalAmount)
-                            2 -> isPercentageValid(percentageSplits)
+                            2 -> isPercentageValid(percentageMap)
                             else -> false
                         }
 
@@ -93,27 +99,20 @@ fun AdjustSplitScreen(
                         val finalSplitMap: Map<String, Double> = when (selectedTab) {
                             0 -> selectedMembers.filterValues { it }.mapValues { perPersonAmount }
                             1 -> unequalAmounts.mapValues { it.value.toDoubleOrNull() ?: 0.0 }
-                            2 -> percentageSplits.mapValues {
+                            2 -> percentageMap.mapValues {
                                 val percent = it.value.toDoubleOrNull() ?: 0.0
                                 (percent / 100.0) * totalAmount
                             }
                             else -> emptyMap()
                         }
 
-                        // ✅ Save in ViewModel
                         viewModel.setSplitMap(finalSplitMap)
                         viewModel.setSplitBetweenMap(finalSplitMap)
 
-                        // ✅ Create Expense object
-                        val encodedGroupName = Uri.encode(groupName)
-                        val encodedGroupType = Uri.encode(groupType)
-
                         navController.navigate("expense_summary/$groupId/$encodedGroupName/$encodedGroupType")
-
                     }) {
                         Icon(Icons.Default.Check, contentDescription = "Done")
                     }
-
                 },
                 colors = TopAppBarDefaults.mediumTopAppBarColors(
                     containerColor = Color.Black,
@@ -145,7 +144,6 @@ fun AdjustSplitScreen(
                         onClick = {
                             selectedTab = index
                             if (index == 1) unequalAmounts.clear()
-                            if (index == 2) percentageSplits.clear()
                         },
                         text = {
                             Text(
@@ -191,29 +189,37 @@ fun AdjustSplitScreen(
                     onBack = {},
                     onDone = {},
                     onSplitChanged = { updatedSplit ->
-                        percentageSplits.clear()
                         updatedSplit.forEach { (uid, amount) ->
-                            percentageSplits[uid] = "%.2f".format((amount / totalAmount) * 100)
+                            percentageMap[uid] = "%.2f".format((amount / totalAmount) * 100)
                         }
                     },
                     viewModel = viewModel,
+                    percentageMap = percentageMap
                 )
             }
         }
     }
 }
 
-// Helper for floating-point comparison
-fun isApproximatelyEqual(a: Double, b: Double, epsilon: Double = 0.01): Boolean {
+fun isApproximatelyEqual(a: Double, b: Double, epsilon: Double = 0.1): Boolean {
     return abs(a - b) < epsilon
 }
 
 fun isTotalValid(map: Map<String, String>, total: Double): Boolean {
-    val sum = map.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
-    return isApproximatelyEqual(sum, total)
+    val sum = map.values.mapNotNull {
+        val raw = it.trim()
+        Log.d("SplitDebug", "Parsing value: '$raw'")
+        raw.toBigDecimalOrNull()?.setScale(2, RoundingMode.HALF_EVEN)
+    }.fold(BigDecimal.ZERO) { acc, bd -> acc + bd }
+
+    val roundedTotal = BigDecimal.valueOf(total).setScale(2, RoundingMode.HALF_EVEN)
+    Log.d("SplitDebug", "Final computed sum: $sum, Total: $roundedTotal")
+
+    return sum.compareTo(roundedTotal) == 0
 }
 
 fun isPercentageValid(map: Map<String, String>): Boolean {
     val sum = map.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+    Log.d("SplitDebug", "Percentage sum: $sum")
     return isApproximatelyEqual(sum, 100.0)
 }

@@ -55,8 +55,8 @@ fun ExpenseSummaryScreen(
                     if (paidBy == "multiple") {
                         expense["paidBy"] = whoPaidMap
                     } else {
-                        expense["paidById"] = paidBy ?: viewModel.currentUser.uid
-                        expense["paidAmount"] = amount
+                        val uid = paidBy ?: viewModel.currentUser.uid
+                        expense["paidBy"] = mapOf(uid to amount) // ✅ Always use 'paidBy' map
                     }
 
                     FirebaseFirestore.getInstance()

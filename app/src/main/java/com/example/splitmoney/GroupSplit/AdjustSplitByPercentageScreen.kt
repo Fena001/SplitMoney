@@ -36,28 +36,28 @@ fun SplitByPercentageTab(
     viewModel: ExpenseFlowViewModel,
     members: List<User>,
     totalAmount: Double,
+    percentageMap: MutableMap<String, String>, // 🔥 Shared from parent
     onBack: () -> Unit,
     onDone: () -> Unit,
     onSplitChanged: (Map<String, Double>) -> Unit
-)
-{
+) {
     LaunchedEffect(Unit) {
         viewModel.updateSplitType("by percentages")
     }
-    val percentageMap = remember(members) {
-        mutableStateMapOf<String, String>().apply {
-            members.forEach { this[it.uid] = "" }
+
+    // Initialize percentages only once
+    LaunchedEffect(members) {
+        members.forEach {
+            if (percentageMap[it.uid] == null) {
+                percentageMap[it.uid] = ""
+            }
         }
     }
 
-
-    val totalPercent = calculateTotalPercentage(percentageMap)
-    val isValid = isPercentageValid(percentageMap)
-
-    LaunchedEffect(percentageMap) {
+    // Update the calculated map to parent when map changes
+    LaunchedEffect(percentageMap.toMap()) {
         onSplitChanged(parsePercentageSplit(percentageMap, totalAmount))
     }
-
 
     Column(
         modifier = Modifier
@@ -77,14 +77,12 @@ fun SplitByPercentageTab(
                 "Split by percentages",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                fontSize = 18.sp
             )
             Text(
                 "Enter the percentage split that's fair for your situation",
                 color = Color.LightGray,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                fontSize = 14.sp
             )
         }
 
@@ -134,7 +132,7 @@ fun SplitByPercentageTab(
                         )
                     }
 
-                    // Line input
+                    // Percentage input field
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.width(100.dp)
@@ -149,10 +147,16 @@ fun SplitByPercentageTab(
                         TextField(
                             value = percentage,
                             onValueChange = { newValue ->
-                                if (newValue.matches(Regex("^\\d{0,3}(\\.\\d{0,2})?$")) && (newValue.toFloatOrNull() ?: 0f) <= 100) {
-                                    percentageMap[member.uid] = newValue
+                                if (newValue.isEmpty()) {
+                                    percentageMap[member.uid] = ""
+                                } else if (newValue.matches(Regex("^\\d{0,3}(\\.\\d{0,2})?$"))) {
+                                    val num = newValue.toFloatOrNull()
+                                    if (num != null && num <= 100f) {
+                                        percentageMap[member.uid] = newValue
+                                    }
                                 }
-                            },
+                            }
+                            ,
                             placeholder = { Text("0", color = Color.LightGray) },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
@@ -169,7 +173,6 @@ fun SplitByPercentageTab(
                             ),
                             modifier = Modifier.width(70.dp)
                         )
-
                     }
                 }
             }

@@ -32,7 +32,7 @@ fun FriendAdjustSplitScreen(
     totalAmount: Float,
     paidByUser: User,
     onBack: () -> Unit,
-    onConfirm: (Map<String, Float>) -> Unit
+    onConfirm: (String, Map<String, Float>) -> Unit
 ) {
     val tabs = listOf("Equally", "Unequally", "By percentages")
     var selectedTabIndex by remember { mutableStateOf(0) }
@@ -46,10 +46,12 @@ fun FriendAdjustSplitScreen(
     val percentages = remember { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(participants) {
+        val defaultAmount = totalAmount / participants.size
+        val defaultPercent = 100f / participants.size
         participants.forEach {
             equallySelected[it.uid] = true
-            unequalAmounts[it.uid] = ""       // instead of "0.00"
-            percentages[it.uid] = ""          // instead of "0"
+            unequalAmounts[it.uid] = "%.2f".format(defaultAmount)
+            percentages[it.uid] = "%.0f".format(defaultPercent)
         }
     }
     val selectedCount = equallySelected.values.count { it }
@@ -85,7 +87,7 @@ fun FriendAdjustSplitScreen(
                                 }
                                 else -> emptyMap()
                             }
-                            onConfirm(result)
+                            onConfirm(selectedTab, result)
                         }
                     }) {
                         Icon(Icons.Default.Check, contentDescription = "Confirm", tint = Color.White)

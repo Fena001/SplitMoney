@@ -198,14 +198,19 @@ class MainActivity : ComponentActivity() {
                         navArgument("groupType") { type = NavType.StringType }
                     )
                 ) { backStackEntry ->
-                    val previousHandle = navController.previousBackStackEntry?.savedStateHandle
+
+                    // ✅ Extract route arguments
                     val groupId = backStackEntry.arguments?.getString("groupId") ?: ""
                     val groupName = backStackEntry.arguments?.getString("groupName") ?: ""
                     val groupType = backStackEntry.arguments?.getString("groupType") ?: ""
 
-                    val members = previousHandle?.get<List<User>>("enterPaidMembers") ?: emptyList()
-                    val totalAmount = previousHandle?.get<Double>("enterPaidAmount") ?: 0.0
-                    val expenseId = previousHandle?.get<String>("expenseId") ?: ""
+                    // ✅ Extract data passed via SavedStateHandle
+                    val previousEntry = navController.previousBackStackEntry
+                    val savedStateHandle = previousEntry?.savedStateHandle
+
+                    val members = savedStateHandle?.get<List<User>>("enterPaidMembers") ?: emptyList()
+                    val totalAmount = savedStateHandle?.get<Double>("enterPaidAmount") ?: 0.0
+                    val expenseId = savedStateHandle?.get<String>("expenseId") ?: ""
 
                     EnterPaidAmountsScreen(
                         members = members,
@@ -215,10 +220,27 @@ class MainActivity : ComponentActivity() {
                         groupType = groupType,
                         expenseId = expenseId,
                         navController = navController,
+                        viewModel = expenseFlowViewModel,
                         onBack = { navController.popBackStack() },
-                        viewModel = expenseFlowViewModel
+                        onConfirm = { paidMap ->
+                            // Save into viewModel
+                            expenseFlowViewModel.setPaidBy("multiple")
+                            expenseFlowViewModel.setWhoPaidMap(paidMap)
+
+                            // ✅ Navigate to AddExpenseScreen
+                            val encodedName = Uri.encode(groupName)
+                            val encodedType = Uri.encode(groupType)
+
+                            navController.navigate(
+                                "add_expense?groupId=$groupId&groupName=$encodedName&groupType=$encodedType&reset=false"
+                            ) {
+                                // Optional: Avoid multiple copies of the destination
+                                popUpTo("add_expense") { inclusive = true }
+                            }
+                        }
                     )
                 }
+
 
                 composable(
                     "adjust_split?groupId={groupId}&groupName={groupName}&groupType={groupType}",
@@ -355,16 +377,17 @@ class MainActivity : ComponentActivity() {
                     WhoPaidFriendScreen(
                         currentUser = currentUser,
                         friend = friend,
-                        selectedPayerId = viewModel.paidBy.collectAsState().value ?: currentUser.uid,
+                        selectedPayerId = viewModel.paidByUserIds.firstOrNull() ?: currentUser.uid,
                         onBack = { navController.popBackStack() },
                         onDone = { payerId ->
-                            viewModel.setPaidBy(payerId)
+                            viewModel.setPaidBySingle(payerId) // <- ✅ this sets the selected user as sole payer
                             navController.popBackStack()
                         },
                         onMultiplePeopleClick = {
                             val encodedName = Uri.encode(friend.name)
                             navController.navigate("enter_paid_amount_friend/${friend.uid}/$encodedName/$totalAmount")
-                        }
+                        },
+                        navController = navController
                     )
                 }
 
@@ -388,14 +411,18 @@ class MainActivity : ComponentActivity() {
                     EnterPaidAmountsFriendScreen(
                         participants = participants,
                         totalAmount = totalAmount,
-                        onBack = { navController.popBackStack() },
-                        onConfirm = { paidMap ->
-                            viewModel.setPaidAmounts(paidMap)
-                            navController.popBackStack()
+                        currentUser = currentUser,
+                        navController = navController,
+                        viewModel = viewModel,
+                        onBack = {
+                            val encodedName = Uri.encode(friendName)
+                            navController.popBackStack("friend_add_expense/$friendUid/$encodedName", inclusive = false)
                         },
-                        currentUser = currentUser
+                        friendUid = friendUid,           // ✅ pass this
+                        friendName = friendName
                     )
                 }
+
                 composable(
                     route = "adjust_split_friend/{uids}",
                     arguments = listOf(navArgument("uids") { type = NavType.StringType })
@@ -406,7 +433,7 @@ class MainActivity : ComponentActivity() {
                     )
                     val participants by viewModel.participants.collectAsState()
 
-                    // Other data can come from savedStateHandle
+                    // Data from previous screen
                     val totalAmount = navController.previousBackStackEntry
                         ?.savedStateHandle?.get<Float>("totalAmount") ?: 0f
                     val paidByUser = navController.previousBackStackEntry
@@ -417,7 +444,11 @@ class MainActivity : ComponentActivity() {
                         totalAmount = totalAmount,
                         paidByUser = paidByUser,
                         onBack = { navController.popBackStack() },
-                        onConfirm = { splitMap ->
+                        onConfirm = { splitType, splitMap ->
+                            navController.previousBackStackEntry?.savedStateHandle?.apply {
+                                set("splitType", splitType)
+                                set("splitMap", splitMap)
+                            }
                             navController.popBackStack()
                         }
                     )

@@ -5,9 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,14 +15,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhoPaidFriendScreen(
+    navController: NavController,
     currentUser: User,
     friend: User,
     selectedPayerId: String = currentUser.uid,
@@ -41,12 +41,26 @@ fun WhoPaidFriendScreen(
                 title = { Text("Who paid?", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onDone(selectedId) }) {
-                        Icon(Icons.Default.Check, contentDescription = "Done", tint = Color.White)
+                    IconButton(onClick = {
+                        navController.previousBackStackEntry?.savedStateHandle?.apply {
+                            set("paidByUserIds", listOf(selectedId))
+                            set("splitType", "equally") // default splitType, can be updated later
+                        }
+                        onDone(selectedId)
+                    }) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Done",
+                            tint = Color.White
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -54,14 +68,12 @@ fun WhoPaidFriendScreen(
         },
         containerColor = Color(0xFF121212)
     ) { paddingValues ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
-
                 item {
                     PayerRow(
                         user = currentUser,
@@ -69,7 +81,6 @@ fun WhoPaidFriendScreen(
                         onClick = { selectedId = currentUser.uid }
                     )
                 }
-
                 item {
                     PayerRow(
                         user = friend,
@@ -77,7 +88,6 @@ fun WhoPaidFriendScreen(
                         onClick = { selectedId = friend.uid }
                     )
                 }
-
                 item {
                     Spacer(Modifier.height(24.dp))
                     Row(
@@ -98,6 +108,7 @@ fun WhoPaidFriendScreen(
         }
     }
 }
+
 @Composable
 fun PayerRow(
     user: User,
@@ -115,8 +126,15 @@ fun PayerRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(getAvatarColor(user.name)) // optional: add pattern/avatar color
-        )
+                .background(getAvatarColor(user.name)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = user.name.firstOrNull()?.uppercase() ?: "",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
         Spacer(modifier = Modifier.width(16.dp))
 
@@ -137,6 +155,7 @@ fun PayerRow(
         }
     }
 }
+
 fun getAvatarColor(name: String): Color {
     return when ((name.hashCode() and 0xFFFFFF) % 5) {
         0 -> Color(0xFFE57373)

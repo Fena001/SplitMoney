@@ -3,21 +3,11 @@ package com.example.splitmoney.groupindividualhome
 import User
 import android.annotation.SuppressLint
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -36,35 +26,30 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import coil.compose.rememberAsyncImagePainter
 import com.example.splitmoney.AddExpence.ExpenseFlowViewModel
+import com.example.splitmoney.IconDescription.fetchIconUrl
 import com.example.splitmoney.dataclass.Expense
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.example.splitmoney.R
+
 
 @Composable
 fun GroupDetailScreen(
@@ -376,17 +361,27 @@ fun ExpenseItem(
     }
 
     val mainPayer = expense.paidBy.entries.firstOrNull()?.key
-    val payerName = if (expense.paidBy.size > 1) {
-        "${expense.paidBy.size} people paid"
-    } else if (mainPayer == currentUser.uid) {
-        "You paid"
-    } else {
-        "${usersMap[mainPayer]?.name ?: "Someone"} paid"
+    val payerName = when {
+        expense.paidBy.size > 1 -> "${expense.paidBy.size} people paid"
+        mainPayer == currentUser.uid -> "You paid"
+        mainPayer != null -> "${usersMap[mainPayer]?.name ?: "Someone"} paid"
+        else -> "Someone paid"
     }
 
     val date = Date(expense.timestamp)
     val sdfMonth = SimpleDateFormat("MMM")
     val sdfDay = SimpleDateFormat("dd")
+    var iconUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(expense.title) {
+        iconUrl = fetchIconUrl(expense.title)
+    }
+
+    val iconPainter = rememberAsyncImagePainter(
+        model = iconUrl,
+        placeholder = painterResource(id = R.drawable.img),
+        error = painterResource(id = R.drawable.img)
+    )
+
 
     Row(
         modifier = Modifier
@@ -404,10 +399,15 @@ fun ExpenseItem(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(Color(0xFFD32F2F), shape = MaterialTheme.shapes.small),
+                .clip(CircleShape)
+                .background(Color(0xFFD32F2F)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Receipt, contentDescription = null, tint = Color.White)
+            Image(
+                painter = iconPainter,
+                contentDescription = "Expense icon",
+                modifier = Modifier.size(22.dp)
+            )
         }
 
         Spacer(modifier = Modifier.width(16.dp))

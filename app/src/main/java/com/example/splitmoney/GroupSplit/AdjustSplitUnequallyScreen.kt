@@ -1,6 +1,7 @@
 package com.example.splitmoney.GroupSplit
 
 import User
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -40,6 +41,7 @@ fun SplitUnequallyTab(
     onDone: () -> Unit,
     onSplitChanged: (Map<String, Double>) -> Unit
 ) {
+
     LaunchedEffect(Unit) {
         viewModel.updateSplitType("unequally")
     }
@@ -54,10 +56,17 @@ fun SplitUnequallyTab(
     val remaining = totalAmount - enteredSum
 
     // Notify parent of updated split
-    LaunchedEffect(amounts) {
-        val parsed = amounts.mapValues { it.value.toDoubleOrNull() ?: 0.0 }
+    val amountsState by remember {
+        derivedStateOf { amounts.toMap() } // watches internal changes
+    }
+
+// ✅ This will now react to actual value changes
+    LaunchedEffect(amountsState) {
+        val parsed = amountsState.mapValues { it.value.trim().toDoubleOrNull() ?: 0.0 }
+        Log.d("SplitDebug", "Calling onSplitChanged with: $parsed")
         onSplitChanged(parsed)
     }
+
 
     Scaffold(
         containerColor = Color.Black,
@@ -180,6 +189,7 @@ fun SplitUnequallyTab(
                                 onValueChange = { newValue ->
                                     if (newValue.matches(Regex("^\\d{0,7}(\\.\\d{0,2})?$"))) {
                                         amounts[member.uid] = newValue
+                                        Log.d("SplitDebug", "Amount entered for ${member.name}: $newValue")
                                     }
                                 },
                                 placeholder = { Text("0.00", color = Color.LightGray) },

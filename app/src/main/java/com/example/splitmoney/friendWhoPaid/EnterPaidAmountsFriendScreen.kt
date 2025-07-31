@@ -1,6 +1,7 @@
 package com.example.splitmoney.friendWhoPaid
 
 import User
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -17,34 +18,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnterPaidAmountsFriendScreen(
     participants: List<User>,
     totalAmount: Double,
-    currentUser: User, // Pass current user here
+    currentUser: User,
+    navController: NavController,
+    viewModel: FriendExpenseViewModel,
     onBack: () -> Unit,
-    onConfirm: (Map<String, Double>) -> Unit
+    friendUid: String,             // ✅ Add this
+    friendName: String
 ) {
-    val context = LocalContext.current
-    val amounts = remember { mutableStateMapOf<String, String>() }
+    val paidAmounts = remember { mutableStateMapOf<String, String>() }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Initialize all amounts to "0.00"
     LaunchedEffect(participants) {
-        participants.forEach { user ->
-            amounts.putIfAbsent(user.uid, "0.00")
+        participants.forEach {
+            if (paidAmounts[it.uid] == null) {
+                paidAmounts[it.uid] = ""
+            }
         }
     }
 
-    val totalEntered = amounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
-    val amountLeft = totalAmount - totalEntered
-    val isComplete = amountLeft == 0.0
+    val totalEnteredAmount = paidAmounts.values.sumOf { it.trim().toDoubleOrNull() ?: 0.0 }
+    val amountLeft = totalAmount - totalEnteredAmount
 
     Scaffold(
         topBar = {
@@ -58,119 +69,127 @@ fun EnterPaidAmountsFriendScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            if (isComplete) {
-                                onConfirm(amounts.mapValues { it.value.toDoubleOrNull() ?: 0.0 })
+                            if (amountLeft == 0.0) {
+                                val resultMap = paidAmounts.mapValues { it.value.trim().toDoubleOrNull() ?: 0.0 }
+
+                                viewModel.setPaidBy("multiple")
+                                viewModel.setWhoPaidMap(resultMap)
+
+                                // ✅ Pass data back to FriendAddExpenseScreen
+                                navController.previousBackStackEntry?.savedStateHandle?.apply {
+                                    set("paidByUserIds", resultMap.keys.toList())
+                                    set("splitType", "unequally")
+                                    set("paidAmounts", resultMap)
+                                }
+
+                                // ✅ Pop back directly to FriendAddExpenseScreen
+                                val encodedName = Uri.encode(friendName)
+                                navController.popBackStack(
+                                    route = "friend_add_expense/$friendUid/$encodedName",
+                                    inclusive = false
+                                )
                             } else {
-                                Toast.makeText(context, "Please distribute full amount", Toast.LENGTH_SHORT).show()
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Amounts don't match. Please check.")
+                                }
                             }
                         }
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "Done", tint = Color.White)
                     }
+
+
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF212121))
             )
         },
-        containerColor = Color(0xFF121212)
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    containerColor = Color.DarkGray,
+                    contentColor = Color.White,
+                    snackbarData = data
+                )
+            }
+        },
+        containerColor = Color(0xFF212121)
+    ) { padding ->
+        LazyColumn(modifier = Modifier.padding(padding)) {
+            items(participants) { user ->
+                val name = user.name.ifBlank { "You" }
+                val initial = name.firstOrNull()?.uppercase() ?: "?"
 
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(participants) { user ->
-                    val isCurrentUser = user.uid == currentUser.uid
-                    val displayName = if (isCurrentUser) "You" else user.name
-                    val initial = displayName.firstOrNull()?.uppercase() ?: "?"
-
-                    Row(
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF800000)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Avatar
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(getFriendAvatarColor(user.name)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = initial,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(initial, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
 
-                        Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                        // Name
-                        Text(
-                            text = displayName,
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            modifier = Modifier.weight(1f)
-                        )
+                    Text(name, color = Color.White, modifier = Modifier.weight(1f))
 
-                        // ₹ Symbol
-                        Text(
-                            text = "₹",
-                            color = Color.White,
-                            fontSize = 16.sp
-                        )
-
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("₹", color = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
-
-                        // Amount TextField
                         TextField(
-                            value = amounts[user.uid] ?: "0.00",
-                            onValueChange = {
-                                amounts[user.uid] = it
+                            value = paidAmounts[user.uid] ?: "",
+                            onValueChange = { newVal ->
+                                if (newVal.matches(Regex("^(\\d+)?(\\.\\d{0,2})?$")))
+                                    paidAmounts[user.uid] = newVal
                             },
+                            placeholder = { Text("0.00") },
+                           // keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            //keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                             modifier = Modifier.width(80.dp),
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.White,
-                                unfocusedIndicatorColor = Color.White,
-                                cursorColor = Color.White
+                                focusedIndicatorColor = Color(0xFF4CAF50),
+                                unfocusedIndicatorColor = Color(0xFF4CAF50),
+                                cursorColor = Color(0xFF4CAF50),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
                             )
                         )
                     }
                 }
             }
 
-            // Bottom Summary
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "₹%.2f of ₹%.2f".format(totalEntered, totalAmount),
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "₹%.2f left".format(amountLeft),
-                    color = if (amountLeft == 0.0) Color(0xFF4CAF50) else Color.Red,
-                    fontSize = 14.sp
-                )
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "₹%.2f of ₹%.2f".format(totalEnteredAmount, totalAmount),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "₹%.2f left".format(amountLeft),
+                        color = if (amountLeft == 0.0) Color.LightGray else Color.Red,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }
 }
 
-// You can use this helper to generate a background color for each user avatar
 fun getFriendAvatarColor(name: String): Color {
     val colors = listOf(
         Color(0xFFE57373), Color(0xFFF06292), Color(0xFFBA68C8),

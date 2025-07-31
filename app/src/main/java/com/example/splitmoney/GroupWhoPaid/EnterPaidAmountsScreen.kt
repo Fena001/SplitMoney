@@ -74,18 +74,27 @@ fun EnterPaidAmountsScreen(
                                 viewModel.setPaidBy("multiple")
                                 viewModel.setWhoPaidMap(resultMap)
 
-                                // ✅ Go back to AddExpenseScreen or wherever you want
-                                navController.popBackStack() // or navigate to summary screen if needed
+                                // ✅ Navigate to AddExpenseScreen with required args
+                                val encodedGroupName = Uri.encode(groupName)
+                                val encodedGroupType = Uri.encode(groupType)
+
+                                navController.navigate(
+                                    "add_expense?groupId=$groupId&groupName=$encodedGroupName&groupType=$encodedGroupType&reset=false"
+                                ) {
+                                    // Optional: Clear intermediate stack
+                                    popUpTo("add_expense") { inclusive = true }
+                                }
                             } else {
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar("Amounts don't match. Please check.")
                                 }
                             }
+                            
                         }
-                    )
-                    {
+                    ) {
                         Icon(Icons.Default.Check, contentDescription = "Done", tint = Color.White)
                     }
+
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF212121))
             )
