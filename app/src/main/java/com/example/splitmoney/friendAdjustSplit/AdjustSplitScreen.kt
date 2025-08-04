@@ -1,17 +1,17 @@
 package com.example.splitmoney.friendAdjustSplit
 
 import User
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,11 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,33 +31,55 @@ fun FriendAdjustSplitScreen(
     participants: List<User>,
     totalAmount: Float,
     paidByUser: User,
+    viewModel: FriendExpenseViewModel,
     onBack: () -> Unit,
-    onConfirm: (String, Map<String, Float>) -> Unit
+    onConfirmNavigate: () -> Unit
 ) {
+    val context = LocalContext.current
     val tabs = listOf("Equally", "Unequally", "By percentages")
     var selectedTabIndex by remember { mutableStateOf(0) }
     val selectedTab = tabs[selectedTabIndex]
 
-    val context = LocalContext.current
-
-    // States for each mode
+    // Local state maps
     val equallySelected = remember { mutableStateMapOf<String, Boolean>() }
     val unequalAmounts = remember { mutableStateMapOf<String, String>() }
     val percentages = remember { mutableStateMapOf<String, String>() }
 
-    LaunchedEffect(participants) {
-        val defaultAmount = totalAmount / participants.size
-        val defaultPercent = 100f / participants.size
-        participants.forEach {
-            equallySelected[it.uid] = true
-            unequalAmounts[it.uid] = "%.2f".format(defaultAmount)
-            percentages[it.uid] = "%.0f".format(defaultPercent)
+    // Restore ViewModel data if present
+    LaunchedEffect(Unit) {
+        val restoredType = viewModel.splitType
+        val restoredMap = viewModel.splitMap
+        if (restoredMap.isNotEmpty()) {
+            selectedTabIndex = tabs.indexOf(restoredType).coerceAtLeast(0)
+            when (restoredType) {
+                "Equally" -> restoredMap.keys.forEach { equallySelected[it] = true }
+                "Unequally" -> restoredMap.forEach { (uid, amount) -> unequalAmounts[uid] = amount.toString() }
+                "By percentages" -> restoredMap.forEach { (uid, amount) ->
+                    val percent = ((amount / totalAmount) * 100).toInt()
+                    percentages[uid] = percent.toString()
+                }
+            }
         }
     }
+
+    // Initialize maps for all users
+    LaunchedEffect(participants) {
+        participants.forEach {
+            unequalAmounts.putIfAbsent(it.uid, "")
+            percentages.putIfAbsent(it.uid, "")
+        }
+    }
+
+    // Calculations
     val selectedCount = equallySelected.values.count { it }
     val equallyAmount = if (selectedCount > 0) totalAmount / selectedCount else 0f
-    val unequalTotal = unequalAmounts.values.sumOf { it.toDoubleOrNull() ?: 0.0 }.toFloat()
-    val percentTotal = percentages.values.sumOf { it.toDoubleOrNull() ?: 0.0 }.toFloat()
+    val unequalTotal = unequalAmounts.values
+        .mapNotNull { it.toFloatOrNull() }
+        .sum()
+
+    val percentTotal = percentages.values
+        .mapNotNull { it.toFloatOrNull() }
+        .sum()
 
     Scaffold(
         topBar = {
@@ -76,21 +98,48 @@ fun FriendAdjustSplitScreen(
                             "By percentages" -> percentTotal == 100f
                             else -> false
                         }
+
                         if (!isValid) {
-                            Toast.makeText(context, "Fix the split first", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Fix the split before confirming.", Toast.LENGTH_SHORT).show()
                         } else {
-                            val result = when (selectedTab) {
-                                "Equally" -> participants.filter { equallySelected[it.uid] == true }.associate { it.uid to equallyAmount }
-                                "Unequally" -> unequalAmounts.mapValues { it.value.toFloatOrNull() ?: 0f }
-                                "By percentages" -> percentages.mapValues {
-                                    ((it.value.toFloatOrNull() ?: 0f) / 100f) * totalAmount
+                            val finalMap: Map<String, Float> = when (selectedTab) {
+                                "Equally" -> participants
+                                    .filter { equallySelected[it.uid] == true }
+                                    .associate { it.uid to equallyAmount }
+
+                                "Unequally" -> unequalAmounts.mapValues {
+                                    it.value.toFloatOrNull() ?: 0f
                                 }
+
+                                "By percentages" -> percentages.mapValues {
+                                    val percent = it.value.toFloatOrNull() ?: 0f
+                                    (percent / 100f) * totalAmount
+                                }
+
                                 else -> emptyMap()
                             }
-                            onConfirm(selectedTab, result)
+
+                            // ✅ Store to shared FriendExpenseViewModel
+                           // viewModel.setSplitType(selectedTab)
+                            viewModel.setSplitMap(finalMap)
+                            viewModel.setSplitType(selectedTab)
+                            Log.d("AdjustSplit", "Setting PaidByUser: ${paidByUser.name}")
+                            viewModel.setPaidByUser(paidByUser)
+                            viewModel.setTotalAmount(totalAmount)
+                            viewModel.updateAmount(totalAmount.toString())
+
+                            // ✅ DEBUG LOGS
+                            Log.d("SaveClick", "Description: ${viewModel.description}")
+                            Log.d("SaveClick", "Amount: ${viewModel.amount}")
+                            Log.d("SaveClick", "SplitType: ${viewModel.splitType}")
+                            Log.d("SaveClick", "PaidByUser: ${viewModel.paidByUser.name}")
+                            Log.d("SaveClick", "SplitMap: ${viewModel.splitMap}")
+                            Log.d("SaveClick", "Participants: ${viewModel.participants.map { it.name }}")
+
+                            onConfirmNavigate()
                         }
                     }) {
-                        Icon(Icons.Default.Check, contentDescription = "Confirm", tint = Color.White)
+                        Icon(Icons.Filled.Check, contentDescription = "Done", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -99,12 +148,10 @@ fun FriendAdjustSplitScreen(
         containerColor = Color(0xFF121212)
     ) { padding ->
         Column(Modifier.padding(padding)) {
-            // Tabs
             TabRow(
                 selectedTabIndex = selectedTabIndex,
                 containerColor = Color.Transparent,
-                contentColor = Color(0xFF4CAF50),
-                modifier = Modifier.fillMaxWidth()
+                contentColor = Color(0xFF4CAF50)
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -120,47 +167,14 @@ fun FriendAdjustSplitScreen(
                 }
             }
 
-            // Tab Illustration + Text
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-            ) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    when (selectedTab) {
-                        "Equally" -> "Split equally"
-                        "Unequally" -> "Split by exact amounts"
-                        "By percentages" -> "Split by percentages"
-                        else -> ""
-                    },
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    when (selectedTab) {
-                        "Equally" -> "Select which people owe an equal share."
-                        "Unequally" -> "Specify exactly how much each person owes."
-                        "By percentages" -> "Enter the percentage split that's fair for your situation."
-                        else -> ""
-                    },
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            }
-
-            // Participant List
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(participants) { user ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Avatar
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
@@ -169,21 +183,15 @@ fun FriendAdjustSplitScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = user.name.first().uppercaseChar().toString(),
+                                user.name.firstOrNull()?.uppercase() ?: "?",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(12.dp))
 
-                        // Name
-                        Text(
-                            user.name,
-                            modifier = Modifier.weight(1f),
-                            color = Color.White,
-                            fontSize = 16.sp
-                        )
+                        Text(user.name, modifier = Modifier.weight(1f), color = Color.White, fontSize = 16.sp)
 
                         when (selectedTab) {
                             "Equally" -> Checkbox(
@@ -194,33 +202,27 @@ fun FriendAdjustSplitScreen(
                             "Unequally" -> TextField(
                                 value = unequalAmounts[user.uid] ?: "",
                                 onValueChange = { unequalAmounts[user.uid] = it },
-                                placeholder = { Text("0.00", color = Color.Gray) },
-                                singleLine = true,
                                 modifier = Modifier.width(80.dp),
-                                textStyle = LocalTextStyle.current.copy(color = Color.White),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.White,
-                                    unfocusedIndicatorColor = Color.Gray,
-                                    cursorColor = Color.White
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedIndicatorColor = Color(0xFF4CAF50),
+                                    unfocusedIndicatorColor = Color(0xFF4CAF50)
                                 )
                             )
 
-                            "By percentages" -> Row {
+                            "By percentages" -> Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextField(
                                     value = percentages[user.uid] ?: "",
                                     onValueChange = { percentages[user.uid] = it },
-                                    placeholder = { Text("0", color = Color.Gray) },
-                                    singleLine = true,
-                                    modifier = Modifier.width(60.dp),
-                                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                                    modifier = Modifier.width(80.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color.White,
-                                        unfocusedIndicatorColor = Color.Gray,
-                                        cursorColor = Color.White
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedIndicatorColor = Color(0xFF4CAF50),
+                                        unfocusedIndicatorColor = Color(0xFF4CAF50)
                                     )
                                 )
                                 Text("%", color = Color.White, modifier = Modifier.padding(start = 4.dp))
@@ -230,23 +232,17 @@ fun FriendAdjustSplitScreen(
                 }
             }
 
-            // Bottom Summary
+            // Footer summary
             Row(
-                Modifier
+                modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 when (selectedTab) {
                     "Equally" -> {
-                        Text(
-                            "₹%.2f/person (%d people)".format(equallyAmount, selectedCount),
-                            color = Color.White
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Text("₹%.2f/person (%d)".format(equallyAmount, selectedCount), color = Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("All", color = Color.White)
                             Checkbox(
                                 checked = selectedCount == participants.size,
@@ -257,39 +253,28 @@ fun FriendAdjustSplitScreen(
                         }
                     }
 
-                    "Unequally" -> {
-                        Column {
-                            Text(
-                                "₹%.2f of ₹%.2f".format(unequalTotal, totalAmount),
-                                color = Color.White
-                            )
-                            Text(
-                                "₹%.2f left".format(totalAmount - unequalTotal),
-                                color = if (totalAmount - unequalTotal == 0f) Color(0xFF4CAF50) else Color.Red,
-                                fontSize = 12.sp
-                            )
-                        }
+                    "Unequally" -> Column {
+                        Text("₹%.2f of ₹%.2f".format(unequalTotal, totalAmount), color = Color.White)
+                        Text(
+                            "₹%.2f left".format(totalAmount - unequalTotal),
+                            color = if ((totalAmount - unequalTotal) == 0f) Color(0xFF4CAF50) else Color.Red,
+                            fontSize = 12.sp
+                        )
                     }
 
-                    "By percentages" -> {
-                        Column {
-                            Text(
-                                "%.0f%% of 100%%".format(percentTotal),
-                                color = Color.White
-                            )
-                            Text(
-                                "%.0f%% left".format(100 - percentTotal),
-                                color = if (percentTotal == 100f) Color(0xFF4CAF50) else Color.Red,
-                                fontSize = 12.sp
-                            )
-                        }
+                    "By percentages" -> Column {
+                        Text("%.0f%% of 100%%".format(percentTotal), color = Color.White)
+                        Text(
+                            "%.0f%% left".format(100f - percentTotal),
+                            color = if (percentTotal == 100f) Color(0xFF4CAF50) else Color.Red,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
         }
     }
 }
-
 
 fun getAvatarColor(name: String): Color {
     val colors = listOf(
@@ -298,6 +283,5 @@ fun getAvatarColor(name: String): Color {
         Color(0xFF4DD0E1), Color(0xFF4DB6AC), Color(0xFF81C784),
         Color(0xFFFFB74D), Color(0xFFA1887F), Color(0xFF90A4AE)
     )
-    val index = (name.hashCode() and 0x7fffffff) % colors.size
-    return colors[index]
+    return colors[(name.hashCode() and 0x7fffffff) % colors.size]
 }

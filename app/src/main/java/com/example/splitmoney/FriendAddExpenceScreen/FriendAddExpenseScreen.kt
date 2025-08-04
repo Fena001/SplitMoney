@@ -41,39 +41,41 @@ fun FriendAddExpenseScreen(
 ) {
     val context = LocalContext.current
     val description = viewModel.description
-    var amount by remember { mutableStateOf(viewModel.amount) }
+    val amount = viewModel.amount
 
 
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
 
-// ✅ Restore paidByUserIds and paidAmounts when screen is recomposed
+    // ✅ Restore data from previous screens
     LaunchedEffect(Unit) {
-        val paidIds = savedStateHandle?.get<List<String>>("paidByUserIds")
-        val paidMap = savedStateHandle?.get<Map<String, Double>>("paidAmounts")
-        val splitType = savedStateHandle?.get<String>("splitType")
-
-        if (paidIds != null) {
-            viewModel.setPaidByMultiple(paidIds)
+        savedStateHandle?.get<List<String>>("paidByUserIds")?.let {
+            viewModel.setPaidByMultiple(it)
+            savedStateHandle.remove<List<String>>("paidByUserIds")
         }
 
-        if (paidMap != null) {
-            viewModel.setPaidAmounts(paidMap)
+        savedStateHandle?.get<Map<String, Double>>("paidAmounts")?.let {
+            viewModel.setWhoPaidMap(it)
+            savedStateHandle.remove<Map<String, Double>>("paidAmounts")
         }
 
-        if (splitType != null) {
-            viewModel.setSplitType(splitType)
+        savedStateHandle?.get<String>("splitType")?.let {
+            viewModel.setSplitType(it)
+            savedStateHandle.remove<String>("splitType")
         }
 
-        // Optional: Clear saved state once restored
-        savedStateHandle?.remove<String>("splitType")
-        savedStateHandle?.remove<List<String>>("paidByUserIds")
-        savedStateHandle?.remove<Map<String, Double>>("paidAmounts")
-    }
+        savedStateHandle?.get<Map<String, Float>>("splitMap")?.let {
+            viewModel.setSplitMap(it)
+            savedStateHandle.remove<Map<String, Float>>("splitMap")
+        }
 
-    LaunchedEffect(Unit) {
-        savedStateHandle?.get<List<String>>("paidByUserIds")?.let { ids ->
-            Log.d("PaidDebug", "Received payer IDs: $ids")
-            viewModel.setPaidByMultiple(ids)
+        savedStateHandle?.get<List<User>>("participants")?.let {
+            viewModel.setParticipants(it)
+            savedStateHandle.remove<List<User>>("participants")
+        }
+
+        savedStateHandle?.get<User>("paidByUser")?.let {
+            viewModel.setPaidByUser(it)
+            savedStateHandle.remove<User>("paidByUser")
         }
     }
 
@@ -88,8 +90,15 @@ fun FriendAddExpenseScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        Toast.makeText(context, "Saved (not implemented)", Toast.LENGTH_SHORT).show()
-                    }) {
+                        if (description.isBlank()) {
+                            Toast.makeText(context, "Enter description", Toast.LENGTH_SHORT).show()
+                        } else if (amount.toFloatOrNull() == null || amount.toFloat() <= 0f) {
+                            Toast.makeText(context, "Enter valid amount", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Saved (not implemented)", Toast.LENGTH_SHORT).show()
+                        }
+                    })
+                    {
                         Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.White)
                     }
                 },
@@ -130,18 +139,13 @@ fun FriendAddExpenseScreen(
                 .padding(20.dp)
         ) {
             // With you and friend chip
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 20.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 20.dp)) {
                 Text("With you and", color = Color.White)
                 Spacer(modifier = Modifier.width(12.dp))
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = Color.DarkGray,
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clickable { }
+                    modifier = Modifier.height(36.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -166,7 +170,7 @@ fun FriendAddExpenseScreen(
                 }
             }
 
-            // Description
+            // Description with icon
             Row(verticalAlignment = Alignment.CenterVertically) {
                 var iconUrl by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(description) {
@@ -178,14 +182,8 @@ fun FriendAddExpenseScreen(
                     placeholder = painterResource(id = R.drawable.img),
                     error = painterResource(id = R.drawable.img)
                 )
-                Image(
-                    painter = iconPainter,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-
+                Image(painter = iconPainter, contentDescription = null, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(16.dp))
-
                 TextField(
                     value = description,
                     onValueChange = { viewModel.updateDescription(it) },
@@ -205,16 +203,13 @@ fun FriendAddExpenseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Amount
+            // Amount input
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CurrencyRupee, contentDescription = null, tint = Color.LightGray)
                 Spacer(modifier = Modifier.width(12.dp))
                 TextField(
                     value = amount,
-                    onValueChange = {
-                        amount = it
-                        viewModel.updateAmount(it)
-                    },
+                    onValueChange = { viewModel.updateAmount(it) },
                     placeholder = { Text("0.00", color = Color.White) },
                     textStyle = MaterialTheme.typography.headlineSmall.copy(color = Color.White),
                     modifier = Modifier.fillMaxWidth(),
@@ -232,7 +227,7 @@ fun FriendAddExpenseScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Payer and Split Section
+            // Payer and Split section
             FriendPayerRow(
                 navController = navController,
                 friendId = friendUid,
@@ -266,7 +261,11 @@ fun FriendAddExpenseScreen(
                             set("paidByUser", currentUser)
                         }
 
-                        val uids = listOf(currentUser.uid, friendUid).joinToString(",")
+
+                        viewModel.setParticipants(participants)
+                        viewModel.setPaidByUser(currentUser)
+
+                        val uids = listOf(currentUser.uid, friendUid).joinToString("-")
                         navController.navigate("adjust_split_friend/$uids")
                     }
                 },
@@ -288,12 +287,18 @@ fun FriendPayerRow(
 ) {
     val payerName = when {
         paidByUserIds.size > 1 -> "+${paidByUserIds.size} people"
-        paidByUserIds.firstOrNull() == currentUser.uid -> "You"
-        paidByUserIds.firstOrNull() == friendId -> friendName
-        else -> "Someone"
+        paidByUserIds.size == 1 -> {
+            val id = paidByUserIds.first()
+            when (id) {
+                currentUser.uid -> "You"
+                friendId -> friendName
+                else -> "Someone"
+            }
+        }
+        else -> "You"
     }
 
-    val splitLabel = when (splitType.lowercase()) {
+    val splitLabel = when (splitType.trim().lowercase()) {
         "unequally" -> "split unequally"
         "percentages", "by percentages" -> "split by percentages"
         else -> "split equally"

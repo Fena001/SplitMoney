@@ -1,10 +1,11 @@
-package com.example.splitmoney.friendIndividualhome
+package com.example.splitmoney.FriendExpenceSummary
 
-import com.example.splitmoney.dataclass.Expense
-import com.example.splitmoney.dataclass.ExpenseItem
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.tasks.await
+import com.example.splitmoney.dataclass.Expense
+import com.example.splitmoney.dataclass.ExpenseItem
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -30,6 +31,7 @@ class FriendRepository(
             if (!isRelatedToFriend) continue
 
             val myShare = expense.splitBetween[currentUserId]?.toDouble() ?: 0.0
+            val didIPay = expense.paidBy.containsKey(currentUserId)
 
             val payerInfo = when {
                 expense.paidBy.size == 1 -> {
@@ -44,6 +46,7 @@ class FriendRepository(
             }
 
             val isUserOwed = expense.paidBy.containsKey(currentUserId)
+
             if (isUserOwed) netBalance += myShare else netBalance -= myShare
 
             expenseItems.add(

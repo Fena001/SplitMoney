@@ -80,13 +80,6 @@ class ExpenseFlowViewModel(
         _selectedMembers.value = members
     }
 
-    fun clearSelectedMembers() {
-        _selectedMembers.value = emptyList()
-    }
-
-    fun clearSelectedMembersOnly() {
-        _selectedMembers.value = emptyList()
-    }
 
     // ------------------- Paid By -------------------
     private val _paidBy = MutableStateFlow<String?>(null) // UID or "multiple"

@@ -1,38 +1,69 @@
 package com.example.splitmoney.FriendAddExpenceScreen
 
 import User
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import android.util.Log
+import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
+import com.example.splitmoney.Calculation.calculateEqualSplit
+import com.example.splitmoney.Calculation.isPercentageValid
+import com.example.splitmoney.Calculation.isTotalValid
+import com.example.splitmoney.Calculation.parsePercentageSplit
+import com.example.splitmoney.Calculation.parseUnequalSplit
+import com.example.splitmoney.dataclass.Expense
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.google.firebase.database.FirebaseDatabase
 
 class FriendExpenseViewModel : ViewModel() {
 
-    // Current logged-in user
+    // -----------------------------
+    // Firebase Logged-in User
+    // -----------------------------
     val currentUser: User = FirebaseAuth.getInstance().currentUser?.let {
-        User(it.uid, it.displayName ?: "You", it.email ?: "")
+        val name = it.displayName?.takeIf { it.isNotBlank() } ?: "You"
+        User(it.uid, name, it.email ?: "")
     } ?: User("anonymous", "You", "unknown")
 
-    // Description of the expense
+    // -----------------------------
+    // Expense Fields
+    // -----------------------------
     var description by mutableStateOf("")
+        private set
+
+    var amount by mutableStateOf("")
         private set
 
     fun updateDescription(desc: String) {
         description = desc
+        Log.d("FriendExpenseVM", "Description updated: $desc")
     }
-
-    // Total amount of the expense
-    var amount by mutableStateOf("")
-        private set
 
     fun updateAmount(value: String) {
         amount = value
+        Log.d("FriendExpenseVM", "Amount updated: $value")
     }
 
-    // Who paid: single or multiple user IDs
+    private val _totalAmount = mutableStateOf(0f)
+    val totalAmount: Float get() = _totalAmount.value
+
+    fun setTotalAmount(value: Float) {
+        _totalAmount.value = value
+        Log.d("FriendExpenseVM", "✅ TotalAmount set: $value")
+    }
+
+    private val _paidByUser = mutableStateOf<User?>(null)
+    val paidByUser: User get() = _paidByUser.value ?: currentUser
+
+    fun setPaidByUser(user: User) {
+        _paidByUser.value = user
+    }
+
+    private val _paidBy = mutableStateOf("single") // "single" or "multiple"
+    val paidBy: String get() = _paidBy.value
+
+    fun setPaidBy(value: String) {
+        _paidBy.value = value
+    }
+
     var paidByUserIds by mutableStateOf(listOf(currentUser.uid))
         private set
 
@@ -44,36 +75,106 @@ class FriendExpenseViewModel : ViewModel() {
         paidByUserIds = userIds
     }
 
-    // Paid amounts in case of multiple payers (e.g., for unequally split)
-    private val _paidAmounts = MutableStateFlow<Map<String, Double>>(emptyMap())
-    val paidAmounts: StateFlow<Map<String, Double>> = _paidAmounts
+    private val _whoPaidMap = mutableStateOf<Map<String, Double>>(emptyMap())
+    val whoPaidMap: Map<String, Double> get() = _whoPaidMap.value
 
-    fun setPaidAmounts(map: Map<String, Double>) {
-        _paidAmounts.value = map
+    fun setWhoPaidMap(map: Map<String, Double>) {
+        _whoPaidMap.value = map
     }
+
+    // -----------------------------
+    // Participants
+    // -----------------------------
+    private val _participants = mutableStateListOf<User>()
+    val participants: List<User> get() = _participants
+
+    fun setParticipants(users: List<User>) {
+        _participants.clear()
+        _participants.addAll(users)
+    }
+
+    // -----------------------------
+    // Split Data
+    // -----------------------------
+    private val _splitType = mutableStateOf("Equally")
+    val splitType: String get() = _splitType.value
+
+    fun setSplitType(type: String) {
+        _splitType.value = type
+    }
+
     private val _splitMap = mutableStateOf<Map<String, Float>>(emptyMap())
     val splitMap: Map<String, Float> get() = _splitMap.value
 
     fun setSplitMap(map: Map<String, Float>) {
         _splitMap.value = map
     }
-    private val _splitType = mutableStateOf("equally")
-    val splitType: String get() = _splitType.value
 
-    fun setSplitType(type: String) {
-        _splitType.value = type
+    // -----------------------------
+    // Save to Firebase
+   //  -----------------------------
+    fun saveExpenseToFirebase(
+        friendUid: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        val currentUid = currentUser?.uid ?: run {
+            onError("User not logged in.")
+            return
+        }
+
+        val expense = Expense(
+            expenseId = System.currentTimeMillis().toString(),
+            title = description,
+            amount = totalAmount,
+            paidBy = whoPaidMap.mapValues { it.value.toFloat() },
+            splitBetween = splitMap.mapValues { it.value.toFloat() },
+            timestamp = System.currentTimeMillis()
+        )
+
+        val database = FirebaseDatabase.getInstance().reference
+        val expenseRef = database
+            .child("friend_expenses")
+            .child(currentUid)
+            .child(friendUid)
+            .push()
+
+        expenseRef.setValue(expense)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { exception ->
+                onError(exception.message ?: "Unknown error")
+            }
     }
-    private val _paidBy = mutableStateOf("single")
-    val paidBy: String get() = _paidBy.value
 
-    fun setPaidBy(value: String) {
-        _paidBy.value = value
+    // -----------------------------
+    // Reset All Fields
+    // -----------------------------
+    fun resetAll() {
+        description = ""
+        amount = ""
+        setTotalAmount(0f)
+        setPaidBy("single")
+        paidByUserIds = listOf(currentUser.uid)
+        setWhoPaidMap(emptyMap())
+        setSplitType("Equally")
+        setSplitMap(emptyMap())
+        _participants.clear()
+    }
+    fun updateEqualSplit(selectedFriends: Map<String, Boolean>, totalAmount: Double) {
+        val calculatedMap = calculateEqualSplit(selectedFriends, totalAmount)
+        setSplitMap(calculatedMap.mapValues { it.value.toFloat() })
     }
 
-    private val _whoPaidMap = mutableStateOf<Map<String, Double>>(emptyMap())
-    val whoPaidMap: Map<String, Double> get() = _whoPaidMap.value
+    fun updateUnequalSplit(userAmounts: Map<String, String>, totalAmount: Double): Boolean {
+        val parsed = parseUnequalSplit(userAmounts)
+        setSplitMap(parsed.mapValues { it.value.toFloat() })
+        return         isTotalValid(userAmounts, totalAmount)
+    }
 
-    fun setWhoPaidMap(map: Map<String, Double>) {
-        _whoPaidMap.value = map
+    fun updatePercentageSplit(percentages: Map<String, String>, totalAmount: Double): Boolean {
+        val calculated = parsePercentageSplit(percentages, totalAmount)
+        setSplitMap(calculated.mapValues { it.value.toFloat() })
+        return isPercentageValid(percentages)
     }
 }

@@ -31,6 +31,9 @@ import com.example.splitmoney.friendAdjustSplit.FriendAdjustSplitViewModel
 import com.example.splitmoney.friendAdjustSplit.FriendAdjustSplitViewModelFactory
 import com.example.splitmoney.friendContact.ContactPickerScreen
 import com.example.splitmoney.friendIndividualhome.FriendDetailScreen
+import com.example.splitmoney.friendIndividualhome.FriendDetailViewModel
+import com.example.splitmoney.friendIndividualhome.FriendDetailViewModelFactory
+import com.example.splitmoney.friendSummary.FriendExpenseSummaryScreen
 import com.example.splitmoney.friendWhoPaid.EnterPaidAmountsFriendScreen
 import com.example.splitmoney.friendWhoPaid.WhoPaidFriendScreen
 import com.example.splitmoney.groupindividualhome.GroupDetailScreen
@@ -39,17 +42,23 @@ import com.example.splitmoney.groupindividualhome.GroupDetailViewModelFactory
 import com.example.splitmoney.signupLogin.AuthChoiceScreen
 import com.example.splitmoney.signupLogin.SignUpScreen
 import com.example.splitmoney.signupLogin.SplashScreen
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+const val FRIEND_ADD_EXPENSE_ROUTE = "friend_add_expense"
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.google.firebase.FirebaseApp.initializeApp(this)
+
         enableEdgeToEdge()
 
         setContent {
             val navController = rememberNavController()
             val expenseFlowViewModel: ExpenseFlowViewModel = viewModel()
+            val friendExpenseViewModel: FriendExpenseViewModel = viewModel()
+
 
             NavHost(navController = navController, startDestination = "splash") {
                 composable("splash") { SplashScreen(navController) }
@@ -199,12 +208,12 @@ class MainActivity : ComponentActivity() {
                     )
                 ) { backStackEntry ->
 
-                    // ✅ Extract route arguments
+
                     val groupId = backStackEntry.arguments?.getString("groupId") ?: ""
                     val groupName = backStackEntry.arguments?.getString("groupName") ?: ""
                     val groupType = backStackEntry.arguments?.getString("groupType") ?: ""
 
-                    // ✅ Extract data passed via SavedStateHandle
+
                     val previousEntry = navController.previousBackStackEntry
                     val savedStateHandle = previousEntry?.savedStateHandle
 
@@ -340,8 +349,9 @@ class MainActivity : ComponentActivity() {
                     val friendName = backStackEntry.arguments?.getString("friendName") ?: ""
                     FriendDetailScreen(friendUid = friendUid, friendName = friendName, navController = navController)
                 }
+
                 composable(
-                    route = "friend_add_expense/{friendUid}/{friendName}",
+                    route = "$FRIEND_ADD_EXPENSE_ROUTE/{friendUid}/{friendName}",
                     arguments = listOf(
                         navArgument("friendUid") { type = NavType.StringType },
                         navArgument("friendName") { type = NavType.StringType }
@@ -353,9 +363,11 @@ class MainActivity : ComponentActivity() {
                     FriendAddExpenseScreen(
                         friendUid = friendUid,
                         friendName = friendName,
-                        navController = navController
+                        navController = navController,
+                        viewModel = friendExpenseViewModel
                     )
                 }
+
                 composable(
                     route = "who_paid_friend/{friendUid}/{friendName}/{totalAmount}",
                     arguments = listOf(
@@ -368,26 +380,24 @@ class MainActivity : ComponentActivity() {
                     val friendName = backStackEntry.arguments?.getString("friendName") ?: return@composable
                     val totalAmount = backStackEntry.arguments?.getFloat("totalAmount") ?: 0f
 
-                    val viewModel: FriendExpenseViewModel = viewModel()
-                    val currentUser = viewModel.currentUser.copy(
-                        name = if (viewModel.currentUser.name.isBlank()) "You" else viewModel.currentUser.name
+                    val currentUser = friendExpenseViewModel.currentUser.copy(
+                        name = if (friendExpenseViewModel.currentUser.name.isBlank()) "You" else friendExpenseViewModel.currentUser.name
                     )
                     val friend = User(uid = friendUid, name = friendName, email = "")
 
                     WhoPaidFriendScreen(
+                        navController = navController,
                         currentUser = currentUser,
                         friend = friend,
-                        selectedPayerId = viewModel.paidByUserIds.firstOrNull() ?: currentUser.uid,
+                        totalAmount = totalAmount,
+                        selectedPayerId = friendExpenseViewModel.paidByUserIds.firstOrNull() ?: currentUser.uid,
+                        viewModel = friendExpenseViewModel,
                         onBack = { navController.popBackStack() },
-                        onDone = { payerId ->
-                            viewModel.setPaidBySingle(payerId) // <- ✅ this sets the selected user as sole payer
-                            navController.popBackStack()
-                        },
+                        onDone = { navController.popBackStack() },
                         onMultiplePeopleClick = {
                             val encodedName = Uri.encode(friend.name)
                             navController.navigate("enter_paid_amount_friend/${friend.uid}/$encodedName/$totalAmount")
-                        },
-                        navController = navController
+                        }
                     )
                 }
 
@@ -403,8 +413,7 @@ class MainActivity : ComponentActivity() {
                     val friendName = backStackEntry.arguments?.getString("friendName") ?: return@composable
                     val totalAmount = backStackEntry.arguments?.getFloat("totalAmount")?.toDouble() ?: 0.0
 
-                    val viewModel: FriendExpenseViewModel = viewModel()
-                    val currentUser = viewModel.currentUser
+                    val currentUser = friendExpenseViewModel.currentUser
                     val friend = User(uid = friendUid, name = friendName, email = "")
                     val participants = listOf(currentUser, friend)
 
@@ -413,12 +422,15 @@ class MainActivity : ComponentActivity() {
                         totalAmount = totalAmount,
                         currentUser = currentUser,
                         navController = navController,
-                        viewModel = viewModel,
+                        viewModel = friendExpenseViewModel,
                         onBack = {
                             val encodedName = Uri.encode(friendName)
-                            navController.popBackStack("friend_add_expense/$friendUid/$encodedName", inclusive = false)
+                            navController.popBackStack(
+                                route = "friend_add_expense/$friendUid/$encodedName",
+                                inclusive = false
+                            )
                         },
-                        friendUid = friendUid,           // ✅ pass this
+                        friendUid = friendUid,
                         friendName = friendName
                     )
                 }
@@ -427,30 +439,47 @@ class MainActivity : ComponentActivity() {
                     route = "adjust_split_friend/{uids}",
                     arguments = listOf(navArgument("uids") { type = NavType.StringType })
                 ) { backStackEntry ->
-                    val uids = backStackEntry.arguments?.getString("uids")?.split(",") ?: emptyList()
-                    val viewModel: FriendAdjustSplitViewModel = viewModel(
+                    val uids = backStackEntry.arguments?.getString("uids")?.split("-") ?: emptyList()
+                    val currentUserUid = FirebaseAuth.getInstance().currentUser?.uid
+                    val friendUid = uids.find { it != currentUserUid } ?: ""
+
+                    val prevEntry = navController.previousBackStackEntry
+                    val friendName = prevEntry?.savedStateHandle?.get<String>("friendName") ?: "Unknown"
+                    val totalAmount = prevEntry?.savedStateHandle?.get<Float>("totalAmount") ?: 0f
+                    val paidByUser = prevEntry?.savedStateHandle?.get<User>("paidByUser") ?: User("", "Unknown", "")
+
+                    val friendAdjustViewModel: FriendAdjustSplitViewModel = viewModel(
                         factory = FriendAdjustSplitViewModelFactory(uids)
                     )
-                    val participants by viewModel.participants.collectAsState()
-
-                    // Data from previous screen
-                    val totalAmount = navController.previousBackStackEntry
-                        ?.savedStateHandle?.get<Float>("totalAmount") ?: 0f
-                    val paidByUser = navController.previousBackStackEntry
-                        ?.savedStateHandle?.get<User>("paidByUser") ?: User("", "Unknown", "")
+                    val participants by friendAdjustViewModel.participants.collectAsState()
 
                     FriendAdjustSplitScreen(
                         participants = participants,
                         totalAmount = totalAmount,
                         paidByUser = paidByUser,
+                        viewModel = friendExpenseViewModel,
                         onBack = { navController.popBackStack() },
-                        onConfirm = { splitType, splitMap ->
-                            navController.previousBackStackEntry?.savedStateHandle?.apply {
-                                set("splitType", splitType)
-                                set("splitMap", splitMap)
-                            }
-                            navController.popBackStack()
+                        onConfirmNavigate = {
+                            navController.navigate("friend_expense_summary/$friendUid/${Uri.encode(friendName)}")
                         }
+                    )
+                }
+
+                composable(
+                    route = "friend_expense_summary/{friendUid}/{friendName}",
+                    arguments = listOf(
+                        navArgument("friendUid") { type = NavType.StringType },
+                        navArgument("friendName") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val friendUid = backStackEntry.arguments?.getString("friendUid") ?: return@composable
+                    val friendName = backStackEntry.arguments?.getString("friendName") ?: "Unknown"
+
+                    FriendExpenseSummaryScreen(
+                        friendName = friendName,
+                        friendUid = friendUid,
+                        viewModel = friendExpenseViewModel,
+                        onBack = { navController.popBackStack() }
                     )
                 }
 

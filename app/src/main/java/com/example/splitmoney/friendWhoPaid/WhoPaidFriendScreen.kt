@@ -1,6 +1,7 @@
 package com.example.splitmoney.friendWhoPaid
 
-import User // Replace with your actual User model import
+import User
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,12 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,7 +28,9 @@ fun WhoPaidFriendScreen(
     navController: NavController,
     currentUser: User,
     friend: User,
+    totalAmount: Float,
     selectedPayerId: String = currentUser.uid,
+    viewModel: FriendExpenseViewModel,
     onBack: () -> Unit,
     onDone: (String) -> Unit,
     onMultiplePeopleClick: () -> Unit
@@ -50,10 +52,11 @@ fun WhoPaidFriendScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        navController.previousBackStackEntry?.savedStateHandle?.apply {
-                            set("paidByUserIds", listOf(selectedId))
-                            set("splitType", "equally") // default splitType, can be updated later
-                        }
+                        viewModel.setPaidBySingle(selectedId)
+                        viewModel.setSplitType("Equally")
+                        viewModel.setWhoPaidMap(mapOf(selectedId to totalAmount.toDouble()))
+                        viewModel.setParticipants(listOf(currentUser, friend)) // ✅ Fix missing names in summary
+                        Log.d("WhoPaidScreen", "PaidBy set to: ${selectedId}")
                         onDone(selectedId)
                     }) {
                         Icon(
@@ -150,7 +153,7 @@ fun PayerRow(
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = "Selected",
-                tint = Color(0xFF4CAF50) // green tick
+                tint = Color(0xFF4CAF50)
             )
         }
     }

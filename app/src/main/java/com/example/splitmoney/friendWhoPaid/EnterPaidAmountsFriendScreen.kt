@@ -2,12 +2,12 @@ package com.example.splitmoney.friendWhoPaid
 
 import User
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -17,16 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.ui.text.input.KeyboardType
 import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 import kotlinx.coroutines.launch
 
@@ -39,18 +34,18 @@ fun EnterPaidAmountsFriendScreen(
     navController: NavController,
     viewModel: FriendExpenseViewModel,
     onBack: () -> Unit,
-    friendUid: String,             // ✅ Add this
+    friendUid: String,
     friendName: String
 ) {
     val paidAmounts = remember { mutableStateMapOf<String, String>() }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // Initialize with existing ViewModel values if present
     LaunchedEffect(participants) {
-        participants.forEach {
-            if (paidAmounts[it.uid] == null) {
-                paidAmounts[it.uid] = ""
-            }
+        participants.forEach { user ->
+            val previousAmount = viewModel.whoPaidMap[user.uid]?.toString()
+            paidAmounts[user.uid] = previousAmount ?: ""
         }
     }
 
@@ -72,17 +67,12 @@ fun EnterPaidAmountsFriendScreen(
                             if (amountLeft == 0.0) {
                                 val resultMap = paidAmounts.mapValues { it.value.trim().toDoubleOrNull() ?: 0.0 }
 
+                                // ✅ Update ViewModel correctly
                                 viewModel.setPaidBy("multiple")
+                                viewModel.setPaidByMultiple(resultMap.keys.toList())
                                 viewModel.setWhoPaidMap(resultMap)
 
-                                // ✅ Pass data back to FriendAddExpenseScreen
-                                navController.previousBackStackEntry?.savedStateHandle?.apply {
-                                    set("paidByUserIds", resultMap.keys.toList())
-                                    set("splitType", "unequally")
-                                    set("paidAmounts", resultMap)
-                                }
-
-                                // ✅ Pop back directly to FriendAddExpenseScreen
+                                // ✅ Navigate back to FriendAddExpenseScreen
                                 val encodedName = Uri.encode(friendName)
                                 navController.popBackStack(
                                     route = "friend_add_expense/$friendUid/$encodedName",
@@ -97,8 +87,6 @@ fun EnterPaidAmountsFriendScreen(
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "Done", tint = Color.White)
                     }
-
-
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF212121))
             )
@@ -149,7 +137,7 @@ fun EnterPaidAmountsFriendScreen(
                                     paidAmounts[user.uid] = newVal
                             },
                             placeholder = { Text("0.00") },
-                           // keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.width(80.dp),
                             colors = TextFieldDefaults.colors(
