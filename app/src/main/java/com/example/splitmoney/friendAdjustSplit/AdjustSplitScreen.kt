@@ -120,7 +120,7 @@ fun FriendAdjustSplitScreen(
                             }
 
                             // ✅ Store to shared FriendExpenseViewModel
-                           // viewModel.setSplitType(selectedTab)
+                            // viewModel.setSplitType(selectedTab)
                             viewModel.setSplitMap(finalMap)
                             viewModel.setSplitType(selectedTab)
                             Log.d("AdjustSplit", "Setting PaidByUser: ${paidByUser.name}")

@@ -1,5 +1,6 @@
 package com.example.splitmoney.friendIndividualhome
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
@@ -9,36 +10,50 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.splitmoney.dataclass.Expense
 
 class FriendDetailViewModel(
     private val repository: FriendRepository,
-    savedStateHandle: SavedStateHandle
+    private val friendUid: String,
+    private val rawFriendName: String
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(GroupDetailUiState()) // Reused!
+    private val _uiState = MutableStateFlow(GroupDetailUiState())
     val uiState: StateFlow<GroupDetailUiState> = _uiState
-
-    private val friendUid = savedStateHandle.get<String>("friendUid") ?: ""
-    private val friendName = savedStateHandle.get<String>("friendName") ?: ""
 
     init {
         loadFriendDetail()
+        Log.d("VIEWMODEL", "SavedStateHandle friendUid = $friendUid, friendName = $rawFriendName")
     }
+
 
     private fun loadFriendDetail() {
         viewModelScope.launch {
             try {
                 _uiState.update {
-                    it.copy(isLoading = true, groupName = friendName, groupType = "Friend")
+                    it.copy(isLoading = true, groupName = rawFriendName, groupType = "Friend")
                 }
 
-                val (netBalance, expenses) = repository.getFriendExpenses(friendUid)
+                val (netBalance, expenseItems, rawExpenses) = repository.getFriendExpensesWithRaw(friendUid)
+
+                val allUids = (rawExpenses
+                    .flatMap { it.paidBy.keys + it.splitBetween.keys } + friendUid).toSet()
+                Log.d("VIEWMODEL", "All UIDs used in getUserNamesByUids: $allUids")
+
+                val uidToNameMap = repository.getUserNamesByUids(allUids)
+
+                val resolvedName = uidToNameMap[friendUid]
+                    ?.takeIf { it.isNotBlank() }
+                    ?: rawFriendName.takeIf { it.isNotBlank() }
+                    ?: "Unknown"
+                Log.d("VIEWMODEL", "Resolved friendName = $resolvedName")
 
                 _uiState.update {
                     it.copy(
                         overallBalance = netBalance,
-                        individualBalances = listOf(IndividualBalance(friendUid, friendName, netBalance)),
-                        expenses = expenses,
+                        individualBalances = listOf(IndividualBalance(friendUid, resolvedName, netBalance)),
+                        expenses = expenseItems,
+                        userNames = uidToNameMap,
                         isLoading = false
                     )
                 }

@@ -42,9 +42,16 @@ fun FriendAddExpenseScreen(
     val context = LocalContext.current
     val description = viewModel.description
     val amount = viewModel.amount
-
-
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+
+    LaunchedEffect(Unit) {
+        val shouldReset = savedStateHandle?.get<Boolean>("resetExpense") == true
+        if (shouldReset) {
+            viewModel.clearExpenseData() // ✅ Make sure resetAll() exists in your ViewModel
+            savedStateHandle?.remove<Boolean>("resetExpense")
+        }
+    }
+
 
     // ✅ Restore data from previous screens
     LaunchedEffect(Unit) {

@@ -112,7 +112,7 @@ class FriendExpenseViewModel : ViewModel() {
 
     // -----------------------------
     // Save to Firebase
-   //  -----------------------------
+    //  -----------------------------
     fun saveExpenseToFirebase(
         friendUid: String,
         onSuccess: () -> Unit,
@@ -150,7 +150,7 @@ class FriendExpenseViewModel : ViewModel() {
     // -----------------------------
     // Reset All Fields
     // -----------------------------
-    fun resetAll() {
+    fun clearExpenseData() {
         description = ""
         amount = ""
         setTotalAmount(0f)
@@ -161,6 +161,8 @@ class FriendExpenseViewModel : ViewModel() {
         setSplitMap(emptyMap())
         _participants.clear()
     }
+
+
     fun updateEqualSplit(selectedFriends: Map<String, Boolean>, totalAmount: Double) {
         val calculatedMap = calculateEqualSplit(selectedFriends, totalAmount)
         setSplitMap(calculatedMap.mapValues { it.value.toFloat() })
@@ -177,4 +179,5 @@ class FriendExpenseViewModel : ViewModel() {
         setSplitMap(calculated.mapValues { it.value.toFloat() })
         return isPercentageValid(percentages)
     }
+
 }

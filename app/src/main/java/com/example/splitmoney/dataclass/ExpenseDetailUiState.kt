@@ -1,11 +1,12 @@
 package com.example.splitmoney.dataclass
 
-data class ExpenseSummaryUiState(
-    val title: String = "",
-    val amount: Double = 0.0,
-    val paidBy: String = "",
-    val splitType: String = "Equally",
-    val splitDetails: Map<String, Double> = emptyMap()  // name → amount
+import User
+
+data class FriendDetailUiState(
+    val expenses: List<Expense> = emptyList(),               // raw data
+    val expenseItems: List<ExpenseItem> = emptyList(),       // UI list items
+    val currentUser: User = User(),
+    val friendUser: User? = null,
+    val userNames: Map<String, String> = emptyMap(),
+    val netBalance: Double = 0.0                              // optional: if needed in screen
 )
-
-

@@ -6,10 +6,13 @@ import androidx.lifecycle.ViewModelProvider
 
 class FriendDetailViewModelFactory(
     private val repository: FriendRepository,
-    private val savedStateHandle: SavedStateHandle
+    private val friendUid: String,
+    private val rawFriendName: String
 ) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return FriendDetailViewModel(repository, savedStateHandle) as T
+        if (modelClass.isAssignableFrom(FriendDetailViewModel::class.java)) {
+            return FriendDetailViewModel(repository, friendUid, rawFriendName) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

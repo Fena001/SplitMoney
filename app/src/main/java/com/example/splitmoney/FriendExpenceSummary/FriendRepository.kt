@@ -6,6 +6,11 @@ import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.tasks.await
 import com.example.splitmoney.dataclass.Expense
 import com.example.splitmoney.dataclass.ExpenseItem
+import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -73,4 +78,21 @@ class FriendRepository(
         val sdf = SimpleDateFormat("MMM dd", Locale.getDefault())
         return sdf.format(Date(timestamp))
     }
+
+//    suspend fun getUserNamesByUids(uids: Set<String>): Map<String, String> {
+//        val userRef = FirebaseDatabase.getInstance().getReference("users")
+//        val result = mutableMapOf<String, String>()
+//
+//        val deferreds = uids.map { uid ->
+//            CoroutineScope(Dispatchers.IO).async {
+//                val snapshot = userRef.child(uid).get().await()
+//                val name = snapshot.child("name").getValue(String::class.java)
+//                if (!name.isNullOrBlank()) result[uid] = name
+//            }
+//        }
+//
+//        deferreds.awaitAll()
+//        return result
+//    }
+
 }

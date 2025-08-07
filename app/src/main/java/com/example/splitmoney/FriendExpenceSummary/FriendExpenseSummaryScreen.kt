@@ -1,6 +1,8 @@
 package com.example.splitmoney.friendSummary
 
 import User
+import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 import com.google.firebase.auth.FirebaseAuth
 
@@ -24,6 +27,7 @@ fun FriendExpenseSummaryScreen(
     friendName: String,
     friendUid: String,
     viewModel: FriendExpenseViewModel,
+    navController: NavController,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -58,8 +62,12 @@ fun FriendExpenseSummaryScreen(
                     viewModel.saveExpenseToFirebase(
                         friendUid = friendUid,
                         onSuccess = {
+                            Log.d("NAV", "Navigating to FriendDetail. UID = $friendUid, NAME = $friendName")
+                            viewModel.clearExpenseData()
                             Toast.makeText(context, "Expense saved!", Toast.LENGTH_SHORT).show()
-                            onBack()
+                            navController.navigate("friend_detail/${friendUid}/${Uri.encode(friendName)}") {
+                                popUpTo("friend_expense_summary/{$friendUid}/{$friendName}") { inclusive = true }
+                            }
                         },
                         onError = { error ->
                             Toast.makeText(context, error, Toast.LENGTH_SHORT).show()

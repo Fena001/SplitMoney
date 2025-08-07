@@ -4,6 +4,7 @@ import LoginScreen
 import User
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -347,6 +348,7 @@ class MainActivity : ComponentActivity() {
                 ) { backStackEntry ->
                     val friendUid = backStackEntry.arguments?.getString("friendUid") ?: ""
                     val friendName = backStackEntry.arguments?.getString("friendName") ?: ""
+                    Log.d("NAV", "Navigated to FriendDetail Composable. UID = $friendUid, NAME = $friendName")
                     FriendDetailScreen(friendUid = friendUid, friendName = friendName, navController = navController)
                 }
 
@@ -479,6 +481,7 @@ class MainActivity : ComponentActivity() {
                         friendName = friendName,
                         friendUid = friendUid,
                         viewModel = friendExpenseViewModel,
+                        navController = navController,
                         onBack = { navController.popBackStack() }
                     )
                 }

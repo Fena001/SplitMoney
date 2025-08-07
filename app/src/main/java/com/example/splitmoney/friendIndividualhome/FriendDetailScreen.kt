@@ -2,12 +2,14 @@ package com.example.splitmoney.friendIndividualhome
 
 import User
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
@@ -27,26 +29,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 import com.example.splitmoney.R
 import com.example.splitmoney.dataclass.Expense
+import com.example.splitmoney.dataclass.ExpenseItem
+import androidx.compose.foundation.lazy.items
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FriendDetailScreen(
     friendUid: String,
-    friendName: String,
+    friendName: String, // Initial passed value, used as fallback only
     navController: NavController
 ) {
-    val expenses = remember { mutableStateListOf<Expense>() } // TODO: fetch from Firebase
+    val context = LocalContext.current
+    val viewModel: FriendDetailViewModel = remember {
+        ViewModelProvider(
+            context as ViewModelStoreOwner,
+            FriendDetailViewModelFactory(FriendRepository(), friendUid, friendName)
+        )[FriendDetailViewModel::class.java]
+    }
+
+    val uiState by viewModel.uiState.collectAsState()
+
+    // ✅ Use resolved name from uiState
+    val resolvedName = uiState.userNames[friendUid]
+        ?.takeIf { it.isNotBlank() }
+        ?: friendName
+
+    Log.d("UI", "Rendering resolvedName = $resolvedName")
 
     Scaffold(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    navController.navigate("friend_add_expense/${friendUid}/${Uri.encode(friendName)}")
+                    navController.currentBackStackEntry?.savedStateHandle?.set("resetExpense", true)
+                    navController.navigate("friend_add_expense/${friendUid}/${Uri.encode(resolvedName)}")
                 },
                 icon = { Icon(Icons.Default.Add, contentDescription = "Add") },
                 text = { Text("Add expense") },
@@ -63,7 +88,7 @@ fun FriendDetailScreen(
                 .padding(padding)
         ) {
             Box {
-                // ✅ Green header (150.dp)
+                // Header background
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -71,17 +96,17 @@ fun FriendDetailScreen(
                         .background(Color(0xFF009688))
                 )
 
-                // ✅ Avatar slightly below green into black section
+                // Avatar
                 Box(
                     modifier = Modifier
                         .size(88.dp)
-                        .offset(x = 24.dp, y = 115.dp) // aligned to middle of overlap
+                        .offset(x = 24.dp, y = 115.dp)
                         .clip(CircleShape)
                         .background(Color.Gray),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        friendName.firstOrNull()?.uppercase() ?: "",
+                        text = resolvedName.firstOrNull()?.uppercase() ?: "",
                         fontSize = 32.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -89,26 +114,33 @@ fun FriendDetailScreen(
                 }
             }
 
-            //Spacer(modifier = Modifier.height(60.dp)) // Adjusted after avatar
-
             Column(modifier = Modifier.padding(start = 24.dp)) {
                 Spacer(modifier = Modifier.height(60.dp))
                 Text(
-                    text = friendName,
+                    text = resolvedName,
                     color = Color.White,
                     fontSize = 30.sp,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "No expenses here yet.",
-                    color = Color.LightGray,
-                    fontSize = 14.sp
-                )
+
+                if (uiState.expenses.isEmpty()) {
+                    Text(
+                        text = "No expenses here yet.",
+                        color = Color.LightGray,
+                        fontSize = 14.sp
+                    )
+                } else {
+                    Text(
+                        text = "${uiState.expenses.size} expenses",
+                        color = Color.LightGray,
+                        fontSize = 14.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Rectangular Action Buttons
+            // Action Buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -121,21 +153,30 @@ fun FriendDetailScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Empty state + arrow
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("No expenses here yet.", color = Color.White, fontSize = 16.sp)
-                Text(
-                    "Add an expense to get this party started.",
-                    color = Color.LightGray,
-                    fontSize = 14.sp
-                )
+            // Expense list or placeholder
+            if (uiState.expenses.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("No expenses here yet.", color = Color.White, fontSize = 16.sp)
+                    Text(
+                        "Add an expense to get this party started.",
+                        color = Color.LightGray,
+                        fontSize = 14.sp
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(uiState.expenses.filterNotNull()) { expense ->
+                        ExpenseCard(expense = expense, userNames = uiState.userNames)
+                    }
+                }
             }
         }
     }
 }
+
 
 @Composable
 fun FriendPayerRow(
@@ -252,4 +293,19 @@ fun FriendDetailScreenPreview() {
         friendName = "Reeva",
         navController = navController
     )
+}
+
+@Composable
+fun ExpenseCard(expense: ExpenseItem, userNames: Map<String, String>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(expense.description, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(expense.date, color = Color.Gray, fontSize = 14.sp)
+        Text(expense.payerInfo, color = Color.LightGray, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Divider(color = Color.DarkGray)
+    }
 }
