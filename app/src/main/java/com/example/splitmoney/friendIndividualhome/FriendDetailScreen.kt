@@ -1,6 +1,7 @@
 package com.example.splitmoney.friendIndividualhome
 
 import User
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -39,7 +40,13 @@ import com.example.splitmoney.R
 import com.example.splitmoney.dataclass.Expense
 import com.example.splitmoney.dataclass.ExpenseItem
 import androidx.compose.foundation.lazy.items
-
+import androidx.compose.foundation.lazy.itemsIndexed
+import coil.compose.rememberAsyncImagePainter
+import com.example.splitmoney.IconDescription.fetchIconUrl
+import com.example.splitmoney.groupindividualhome.ExpenseListSection
+import com.google.firebase.auth.FirebaseAuth
+import java.text.SimpleDateFormat
+import java.util.Date
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -154,7 +161,20 @@ fun FriendDetailScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             // Expense list or placeholder
-            if (uiState.expenses.isEmpty()) {
+            if (uiState.rawExpenses.isNotEmpty()) {
+                val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                val currentUser = User(uid = currentUid, name = uiState.userNames[currentUid] ?: "You", email = "")
+                val usersMap = uiState.userNames.mapValues { (uid, name) -> User(uid = uid, name = name, email = "") }
+
+                // debug
+                Log.d("UI_DEBUG", "rawExpenses size = ${uiState.rawExpenses.size}, userNames=${uiState.userNames.keys}")
+
+                ExpenseListSection(
+                    expenses = uiState.rawExpenses,
+                    currentUser = currentUser,
+                    usersMap = usersMap
+                )
+            } else {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -166,99 +186,25 @@ fun FriendDetailScreen(
                         fontSize = 14.sp
                     )
                 }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(uiState.expenses.filterNotNull()) { expense ->
-                        ExpenseCard(expense = expense, userNames = uiState.userNames)
-                    }
-                }
             }
-        }
-    }
-}
 
+////                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+////                    items(uiState.expenses.filterNotNull()) { expense ->
+////                        ExpenseCard(expense = expense, userNames = uiState.userNames)
+////                    }
+////                }
+//                val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+//                val currentUser = members.find { it.uid == currentUid }
+//                val usersMap = members.associateBy { it.uid }
+//
+//                if (currentUser != null) {
+//                    ExpenseListSection(
+//                        expenses = expenses,
+//                        currentUser = currentUser,
+//                        usersMap = usersMap
+//                    )
+//                }
 
-@Composable
-fun FriendPayerRow(
-    navController: NavController,
-    friendId: String,
-    friendName: String,
-    selectedPayerId: String,
-    splitType: String,
-    amount: String,
-    currentUser: User,
-    onPayerClick: () -> Unit,
-    onSplitClick: () -> Unit
-) {
-    val context = LocalContext.current
-
-    val payerName = when (selectedPayerId) {
-        currentUser.uid -> "You"
-        friendId -> friendName
-        else -> "You"
-    }
-
-    val splitLabel = when (splitType.lowercase()) {
-        "unequally" -> "unequally"
-        "by percentages", "percentage" -> "by percentages"
-        else -> "equally"
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text("Paid by", color = Color.White, fontSize = 16.sp)
-        Spacer(Modifier.width(8.dp))
-
-        // Paid By Chip
-        Surface(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .clickable {
-                    val value = amount.toFloatOrNull()
-                    if (value == null || value <= 0f) {
-                        Toast.makeText(context, "Enter a valid amount", Toast.LENGTH_SHORT).show()
-                    } else {
-                        onPayerClick()
-                    }
-                },
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF800000),
-            contentColor = Color.White
-        ) {
-            Text(
-                text = payerName,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(Modifier.width(8.dp))
-        Text("and split", color = Color.White, fontSize = 16.sp)
-        Spacer(Modifier.width(8.dp))
-
-        // Split Chip
-        Surface(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .clickable {
-                    val value = amount.toFloatOrNull()
-                    if (value == null || value <= 0f) {
-                        Toast.makeText(context, "Enter a valid amount", Toast.LENGTH_SHORT).show()
-                    } else {
-                        onSplitClick()
-                    }
-                },
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF424242),
-            contentColor = Color.White
-        ) {
-            Text(
-                text = splitLabel,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                fontWeight = FontWeight.SemiBold
-            )
         }
     }
 }
@@ -295,17 +241,120 @@ fun FriendDetailScreenPreview() {
     )
 }
 
+
+@SuppressLint("SimpleDateFormat")
 @Composable
-fun ExpenseCard(expense: ExpenseItem, userNames: Map<String, String>) {
-    Column(
+fun ExpenseListSection(
+    expenses: List<Expense>,
+    currentUser: User,
+    usersMap: Map<String, User>
+) {
+    val grouped = expenses.groupBy {
+        val date = Date(it.timestamp)
+        SimpleDateFormat("MMMM yyyy").format(date) // e.g., July 2025
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        grouped.forEach { (month, items) ->
+            item {
+                Text(
+                    text = month,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+            }
+
+            itemsIndexed(items) { _, expense ->
+                ExpenseItem(
+                    expense = expense,
+                    currentUser = currentUser,
+                    usersMap = usersMap
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ExpenseItem(
+    expense: Expense,
+    currentUser: User,
+    usersMap: Map<String, User>
+) {
+    val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0f
+    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0f
+    val net = userPaidAmount - userOwesAmount
+
+    val (status, color, amountDisplay) = when {
+        net > 0 -> Triple("you lent", Color(0xFF2ECC71), "+₹%.2f".format(net))
+        net < 0 -> Triple("you borrowed", Color(0xFFE74C3C), "-₹%.2f".format(-net))
+        else -> Triple("settled", Color.Gray, "₹0.00")
+    }
+
+    val mainPayer = expense.paidBy.entries.firstOrNull()?.key
+    val payerName = when {
+        expense.paidBy.size > 1 -> "${expense.paidBy.size} people paid"
+        mainPayer == currentUser.uid -> "You paid"
+        mainPayer != null -> "${usersMap[mainPayer]?.name ?: "Someone"} paid"
+        else -> "Someone paid"
+    }
+
+    val date = Date(expense.timestamp)
+    val sdfMonth = SimpleDateFormat("MMM")
+    val sdfDay = SimpleDateFormat("dd")
+    var iconUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(expense.title) {
+        iconUrl = fetchIconUrl(expense.title)
+    }
+
+    val iconPainter = rememberAsyncImagePainter(
+        model = iconUrl,
+        placeholder = painterResource(id = R.drawable.img),
+        error = painterResource(id = R.drawable.img)
+    )
+
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(expense.description, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        Text(expense.date, color = Color.Gray, fontSize = 14.sp)
-        Text(expense.payerInfo, color = Color.LightGray, fontSize = 13.sp)
-        Spacer(modifier = Modifier.height(4.dp))
-        Divider(color = Color.DarkGray)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(sdfMonth.format(date), fontSize = 12.sp, color = Color.Gray)
+            Text(sdfDay.format(date), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.width(20.dp))
+
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFD32F2F)),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = iconPainter,
+                contentDescription = "Expense icon",
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(expense.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+            Text("$payerName ₹%.2f".format(expense.amount), fontSize = 12.sp, color = Color.Gray)
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(status, fontSize = 12.sp, color = color)
+            Text(amountDisplay, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
+        }
     }
 }

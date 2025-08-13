@@ -1,3 +1,4 @@
+
 package com.example.splitmoney.friendAdjustSplit
 
 import androidx.lifecycle.ViewModel

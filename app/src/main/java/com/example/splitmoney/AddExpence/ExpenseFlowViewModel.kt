@@ -77,7 +77,11 @@ class ExpenseFlowViewModel(
     val selectedMembers: StateFlow<List<User>> = _selectedMembers
 
     fun setSelectedMembers(members: List<User>) {
-        _selectedMembers.value = members
+        val updatedMembers = members.toMutableList()
+        if (updatedMembers.none { it.uid == currentUser.uid }) {
+            updatedMembers.add(currentUser)
+        }
+        _selectedMembers.value = updatedMembers
     }
 
 

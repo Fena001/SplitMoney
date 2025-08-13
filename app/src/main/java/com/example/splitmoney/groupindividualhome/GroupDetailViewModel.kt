@@ -1,6 +1,5 @@
 package com.example.splitmoney.groupindividualhome
 
-
 import Group
 import User
 import androidx.compose.runtime.mutableStateListOf

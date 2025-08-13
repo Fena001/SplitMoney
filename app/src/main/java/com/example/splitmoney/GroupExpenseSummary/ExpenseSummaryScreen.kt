@@ -42,48 +42,18 @@ fun ExpenseSummaryScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    // SAVE logic
-                    val expense = mutableMapOf<String, Any>(
-                        "expenseId" to expenseId,
-                        "groupId" to groupId,
-                        "title" to title,
-                        "amount" to amount,
-                        "timestamp" to System.currentTimeMillis(),
-                        "splitType" to splitType,
-                        "splitBetween" to splitBetween
+                    val encodedGroupName = Uri.encode(groupName)
+                    val encodedGroupType = Uri.encode(groupType)
+
+                    navController.navigate(
+                        "add_expense?groupId=$groupId&groupName=$encodedGroupName&groupType=$encodedGroupType&reset=false"
                     )
-                    if (paidBy == "multiple") {
-                        expense["paidBy"] = whoPaidMap
-                    } else {
-                        val uid = paidBy ?: viewModel.currentUser.uid
-                        expense["paidBy"] = mapOf(uid to amount) // ✅ Always use 'paidBy' map
-                    }
-
-                    FirebaseFirestore.getInstance()
-                        .collection("groups")
-                        .document(groupId)
-                        .collection("expenses")
-                        .document(expenseId)
-                        .set(expense)
-                        .addOnSuccessListener {
-                            viewModel.reset()
-
-                            val encodedGroupName = Uri.encode(groupName)
-                            val encodedGroupType = Uri.encode(groupType)
-
-                            navController.navigate("group_detail/$groupId/$encodedGroupName/$encodedGroupType") {
-                                popUpTo("add_expense") { inclusive = true }
-                            }
-                        }
-                        .addOnFailureListener {
-                            Toast.makeText(context, "Failed to save expense", Toast.LENGTH_SHORT).show()
-                        }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                Text("Confirm & Save")
+                Text("Save & Continue")
             }
         }
     ) { padding ->

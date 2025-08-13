@@ -113,13 +113,8 @@ class FriendExpenseViewModel : ViewModel() {
     // -----------------------------
     // Save to Firebase
     //  -----------------------------
-    fun saveExpenseToFirebase(
-        friendUid: String,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        val currentUid = currentUser?.uid ?: run {
+    fun saveExpenseToFirebase(friendUid: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: run {
             onError("User not logged in.")
             return
         }
@@ -133,18 +128,15 @@ class FriendExpenseViewModel : ViewModel() {
             timestamp = System.currentTimeMillis()
         )
 
-        val database = FirebaseDatabase.getInstance().reference
-        val expenseRef = database
-            .child("friend_expenses")
+        val dbRef = FirebaseDatabase.getInstance().getReference("friend_expenses")
             .child(currentUid)
             .child(friendUid)
+            .child("expenses")
             .push()
 
-        expenseRef.setValue(expense)
+        dbRef.setValue(expense)
             .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { exception ->
-                onError(exception.message ?: "Unknown error")
-            }
+            .addOnFailureListener { e -> onError(e.message ?: "Unknown error") }
     }
 
     // -----------------------------

@@ -2,6 +2,9 @@
 
 package com.example.splitmoney.Home
 
+import Friend
+import Group
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,10 +41,27 @@ fun HomeScreen(
     val red = Color(0xFFE53935)
     val darkGray = Color(0xFF5A5A5A)
 
-    var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("FRIENDS", "GROUPS", "ACTIVITY")
 
     val userName by viewModel.userName
+    val groups by viewModel.groups.collectAsState()
+
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    var selectedTab by remember { mutableStateOf(0) } // default FRIENDS tab
+
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    LaunchedEffect(userId) {
+        viewModel.fetchGroups(userId)
+    }
+
+
+
+    LaunchedEffect(savedStateHandle) {
+        savedStateHandle?.getLiveData<Int>("selectedTab")?.observeForever { tabIndex ->
+            selectedTab = tabIndex
+            savedStateHandle.remove<Int>("selectedTab") // reset after reading
+        }
+    }
 
     LaunchedEffect(Unit) {
         val user = FirebaseAuth.getInstance().currentUser
@@ -51,7 +71,8 @@ fun HomeScreen(
         val user = FirebaseAuth.getInstance().currentUser
         user?.uid?.let {
             viewModel.fetchUserName(it)
-            viewModel.fetchFriends() // 👈 This ensures friends list is loaded/refreshed
+            viewModel.fetchFriends()
+            viewModel.fetchGroups(it) // 👈 This ensures friends list is loaded/refreshed
         }
     }
 
@@ -188,11 +209,12 @@ fun HomeScreen(
                     }
                 }
             }
+            val friends by viewModel.friends.collectAsState()
 
             // Dynamic List Content
             when (selectedTab) {
-//                0 -> FriendList()
-//                1 -> GroupList()
+              0 -> FriendList(friends, navController)
+                1 -> GroupList(groups, navController)
 //                2 -> ActivityList()
             }
         }
@@ -207,39 +229,139 @@ fun BalanceItem(label: String, amount: String, color: Color) {
         Text("₹$amount", fontWeight = FontWeight.Bold, color = color, fontSize = 20.sp)
     }
 }
+@Composable
+fun FriendList(friends: List<Friend>, navController: NavController) {
+    val owesColor = Color(0xFFE67C4A) // Orange like screenshot
+    val owedColor = Color(0xFF4CAF50) // Green for "owes you"
+
+    LazyColumn {
+        items(friends) { friend ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val encodedName = Uri.encode(friend.name)
+                        navController.navigate("friend_detail/${friend.uid}/$encodedName")
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Circle with Initial
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Gray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        friend.name.firstOrNull()?.uppercase() ?: "",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Friend name
+                Text(
+                    text = friend.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Balance display
+                val balanceText: String
+                val balanceColor: Color
+                val absAmount = "₹${"%.2f".format(kotlin.math.abs(friend.balance))}"
+
+                if (friend.balance < 0) {
+                    balanceText = "you owe"
+                    balanceColor = owesColor
+                } else if (friend.balance > 0) {
+                    balanceText = "owes you"
+                    balanceColor = owedColor
+                } else {
+                    balanceText = "settled up"
+                    balanceColor = Color.Gray
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(balanceText, color = balanceColor, fontSize = 12.sp)
+                    Text(absAmount, color = balanceColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Divider()
+        }
+    }
+}
+
 
 @Composable
-fun FriendItem(name: String, status: String, amount: String, owes: Boolean) {
-    val borderColor = if (owes) Color.Red else Color.Green
-    val textColor = if (owes) Color.Red else Color.Green
+fun GroupList(groups: List<Group>, navController: NavController) {
+    val owesColor = Color(0xFFE67C4A)
+    val owedColor = Color(0xFF4CAF50)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
+    LazyColumn {
+        items(groups) { group ->
+            Row(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(2.dp, borderColor, CircleShape),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clickable {
+                        val encodedName = Uri.encode(group.name)
+                        navController.navigate("group_detail/${group.groupId}/$encodedName")
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Icon/Avatar
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        group.name.firstOrNull()?.uppercase() ?: "?",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(group.name, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+
+                    Text(
+                        when {
+                            group.netBalance > 0 -> "${group.otherParty} owes you"
+                            group.netBalance < 0 -> "You owe ${group.otherParty}"
+                            else -> "You are all settled up"
+                        },
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                val absAmount = "₹${kotlin.math.abs(group.netBalance)}"
+                val balanceColor = when {
+                    group.netBalance > 0 -> owedColor
+                    group.netBalance < 0 -> owesColor
+                    else -> Color.Gray
+                }
+
                 Text(
-                    text = name.first().uppercase(),
-                    color = textColor,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    absAmount,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = balanceColor
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(name, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.Black)
-                Text(status, fontSize = 12.sp, color = Color.Gray)
-            }
-            Text("₹$amount", color = textColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Divider()
         }
     }
 }

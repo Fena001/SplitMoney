@@ -21,6 +21,7 @@ import com.example.splitmoney.AddGroup.CreateGroupScreen
 import com.example.splitmoney.FriendAddExpenceScreen.FriendAddExpenseScreen
 import com.example.splitmoney.FriendAddExpenceScreen.FriendExpenseViewModel
 import com.example.splitmoney.GroupContacts.SelectContactsScreen
+import com.example.splitmoney.GroupExpenceimport.ExpenseDetailScreen
 import com.example.splitmoney.GroupExpenseSummary.ExpenseSummaryScreen
 import com.example.splitmoney.GroupSplit.AdjustSplitScreen
 import com.example.splitmoney.Home.HomeScreen
@@ -97,7 +98,12 @@ class MainActivity : ComponentActivity() {
                         groupType = groupType,
                         viewModel = viewModel,
                         expenseFlowViewModel = expenseFlowViewModel,
-                        onBack = { navController.popBackStack() },
+                        onBack = {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selectedTab", 1) // 1 means GROUPS tab
+                            navController.popBackStack()
+                        },
                         onAddMembers = {
                             val encodedName = Uri.encode(groupName)
                             val encodedType = Uri.encode(groupType)
@@ -117,6 +123,25 @@ class MainActivity : ComponentActivity() {
                 }
 
                 composable(
+                    route = "expenseDetail/{groupId}/{expenseId}",
+                    arguments = listOf(
+                        navArgument("groupId") { type = NavType.StringType },
+                        navArgument("expenseId") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val groupId = backStackEntry.arguments?.getString("groupId") ?: ""
+                    val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
+
+                    ExpenseDetailScreen(
+                        groupId = groupId,
+                        expenseId = expenseId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+
+
+                composable(
                     "select_contacts/{groupId}/{groupName}/{groupType}",
                     arguments = listOf(
                         navArgument("groupId") { type = NavType.StringType },
@@ -129,9 +154,21 @@ class MainActivity : ComponentActivity() {
                         groupId = groupId,
                         onBack = { navController.popBackStack() },
                         onConfirmSelection = { selectedMembers ->
-                            navController.previousBackStackEntry?.savedStateHandle?.set("selectedMembers", selectedMembers)
+                            val updatedMembers = selectedMembers.toMutableList()
+
+                            // Ensure current user is always included
+                            val currentUser = expenseFlowViewModel.currentUser
+                            if (updatedMembers.none { it.uid == currentUser.uid }) {
+                                updatedMembers.add(currentUser)
+                            }
+
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selectedMembers", updatedMembers)
+
                             navController.popBackStack()
                         }
+
                     )
                 }
 
@@ -335,6 +372,7 @@ class MainActivity : ComponentActivity() {
                         groupType = groupType
                     )
                 }
+
 
                 composable("contact_picker") {
                     ContactPickerScreen(navController = navController)

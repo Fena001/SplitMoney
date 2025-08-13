@@ -53,6 +53,7 @@ class FriendDetailViewModel(
                         overallBalance = netBalance,
                         individualBalances = listOf(IndividualBalance(friendUid, resolvedName, netBalance)),
                         expenses = expenseItems,
+                        rawExpenses = rawExpenses,
                         userNames = uidToNameMap,
                         isLoading = false
                     )

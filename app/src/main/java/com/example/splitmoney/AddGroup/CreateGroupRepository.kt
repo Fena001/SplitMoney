@@ -1,8 +1,8 @@
 package com.example.splitmoney.AddGroup
 
 
-import Group
 
+import Group
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import java.util.UUID

@@ -191,7 +191,10 @@ fun GroupDetailScreen(
                     expenses = expenses,
                     currentUser = currentUser,
                     usersMap = usersMap
-                )
+                ) { expenseId ->
+                    navController.navigate("expenseDetail/$groupId/$expenseId")
+                }
+
             }
         }
     }
@@ -312,7 +315,8 @@ fun CircularButton(label: String, icon: ImageVector, onClick: () -> Unit) {
 fun ExpenseListSection(
     expenses: List<Expense>,
     currentUser: User,
-    usersMap: Map<String, User>
+    usersMap: Map<String, User>,
+    onExpenseClick: (String) -> Unit
 ) {
     val grouped = expenses.groupBy {
         val date = Date(it.timestamp)
@@ -337,7 +341,8 @@ fun ExpenseListSection(
                 ExpenseItem(
                     expense = expense,
                     currentUser = currentUser,
-                    usersMap = usersMap
+                    usersMap = usersMap,
+                    onClick = { onExpenseClick(expense.expenseId) }
                 )
             }
         }
@@ -348,7 +353,8 @@ fun ExpenseListSection(
 fun ExpenseItem(
     expense: Expense,
     currentUser: User,
-    usersMap: Map<String, User>
+    usersMap: Map<String, User>,
+    onClick: () -> Unit
 ) {
     val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0f
     val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0f
@@ -383,15 +389,27 @@ fun ExpenseItem(
     )
 
 
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        color = Color.Transparent
+    ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() } // ✅ Add this
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(sdfMonth.format(date), fontSize = 12.sp, color = Color.Gray)
-            Text(sdfDay.format(date), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                sdfDay.format(date),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
 
         Spacer(modifier = Modifier.width(20.dp))
@@ -422,5 +440,6 @@ fun ExpenseItem(
             Text(amountDisplay, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
         }
     }
+}
 }
 
