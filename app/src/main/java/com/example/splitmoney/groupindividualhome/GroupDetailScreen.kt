@@ -3,6 +3,7 @@ package com.example.splitmoney.groupindividualhome
 import User
 import android.annotation.SuppressLint
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -349,6 +350,7 @@ fun ExpenseListSection(
     }
 }
 
+
 @Composable
 fun ExpenseItem(
     expense: Expense,
@@ -356,26 +358,44 @@ fun ExpenseItem(
     usersMap: Map<String, User>,
     onClick: () -> Unit
 ) {
-    val userPaidAmount = expense.paidBy[currentUser.uid]?: 0.0   // keep Double
-    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0.0    // also Double
+    // --- Debug logs ---
+    Log.d("ExpenseItem", "Expense: ${expense.title}, amount=${expense.amount}")
+    Log.d("ExpenseItem", "paidBy=${expense.paidBy}")
+    Log.d("ExpenseItem", "splitBetween=${expense.splitBetween}")
+    Log.d("ExpenseItem", "currentUser=${currentUser.uid}")
+
+    // --- Fix 1: properly extract paid amount ---
+    val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0.0
+    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0.0
     val net = userPaidAmount - userOwesAmount
+
+    Log.d("ExpenseItem", "userPaidAmount=$userPaidAmount, userOwesAmount=$userOwesAmount, net=$net")
+
     val (status, color, amountDisplay) = when {
         net > 0 -> Triple("you lent", Color(0xFF2ECC71), "+₹%.2f".format(net))
         net < 0 -> Triple("you borrowed", Color(0xFFE74C3C), "-₹%.2f".format(-net))
         else -> Triple("settled", Color.Gray, "₹0.00")
     }
 
-    val mainPayer = expense.paidBy.entries.firstOrNull()?.key
     val payerName = when {
-        expense.paidBy.size > 1 -> "${expense.paidBy.size} people paid"
-        mainPayer == currentUser.uid -> "You paid"
-        mainPayer != null -> "${usersMap[mainPayer]?.name ?: "Someone"} paid"
-        else -> "Someone paid"
+        expense.paidBy.isEmpty() -> "Someone paid"
+        expense.paidBy.size == 1 -> {
+            val (payerId, amount) = expense.paidBy.entries.first()
+            Log.d("ExpenseItem", "Single payer: $payerId, amount=$amount")
+            if (payerId == currentUser.uid) "You paid"
+            else "${usersMap[payerId]?.name ?: "Someone"} paid"
+        }
+        else -> {
+            Log.d("ExpenseItem", "Multiple payers: count=${expense.paidBy.size}")
+            "${expense.paidBy.size} people paid"
+        }
     }
 
+    // --- Rest of your UI code ---
     val date = Date(expense.timestamp)
     val sdfMonth = SimpleDateFormat("MMM")
     val sdfDay = SimpleDateFormat("dd")
+
     var iconUrl by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(expense.title) {
         iconUrl = fetchIconUrl(expense.title)
@@ -387,58 +407,45 @@ fun ExpenseItem(
         error = painterResource(id = R.drawable.img)
     )
 
-
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         color = Color.Transparent
     ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() } // ✅ Add this
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(sdfMonth.format(date), fontSize = 12.sp, color = Color.Gray)
-            Text(
-                sdfDay.format(date),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
-
-        Spacer(modifier = Modifier.width(20.dp))
-
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFD32F2F)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = iconPainter,
-                contentDescription = "Expense icon",
-                modifier = Modifier.size(22.dp)
-            )
-        }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(sdfMonth.format(date), fontSize = 12.sp, color = Color.Gray)
+                Text(sdfDay.format(date), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
 
-        Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(20.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(expense.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-            Text("$payerName ₹%.2f".format(expense.amount), fontSize = 12.sp, color = Color.Gray)
-        }
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFD32F2F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = iconPainter,
+                    contentDescription = "Expense icon",
+                    modifier = Modifier.size(22.dp)
+                )
+            }
 
-        Column(horizontalAlignment = Alignment.End) {
-            Text(status, fontSize = 12.sp, color = color)
-            Text(amountDisplay, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(expense.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                Text("$payerName ₹%.2f".format(expense.amount), fontSize = 12.sp, color = Color.Gray)
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(status, fontSize = 12.sp, color = color)
+                Text(amountDisplay, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
+            }
         }
     }
 }
-}
-

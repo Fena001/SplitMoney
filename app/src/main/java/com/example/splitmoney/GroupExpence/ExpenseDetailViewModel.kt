@@ -4,80 +4,46 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.splitmoney.dataclass.Expense
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
 
 class ExpenseDetailViewModel : ViewModel() {
+        private val db = FirebaseDatabase.getInstance().reference
+        private val _expense = MutableLiveData<Expense?>()
+        val expense: LiveData<Expense?> = _expense
 
-    private val _expense = MutableLiveData<Expense?>()
-    val expense: LiveData<Expense?> = _expense
+        private val _userNameMap = MutableLiveData<Map<String, String>>(emptyMap())
+        val userNameMap: LiveData<Map<String, String>> = _userNameMap
 
-    private val _nameMap = MutableLiveData<Map<String, String>>()
-    val nameMap: LiveData<Map<String, String>> = _nameMap
+        fun fetchExpense(groupId: String, expenseId: String) {
+            viewModelScope.launch {
+                val expenseSnap = FirebaseFirestore.getInstance()
+                    .collection("groups")
+                    .document(groupId)
+                    .collection("expenses")
+                    .document(expenseId)
+                    .get()
+                    .await()
 
-    fun fetchExpense(groupId: String, expenseId: String) {
-        val db = FirebaseFirestore.getInstance()
+                val expense = expenseSnap.toObject(Expense::class.java)
+                _expense.value = expense
 
-        db.collection("groups")
-            .document(groupId)
-            .collection("expenses")
-            .document(expenseId)
-            .get()
-            .addOnSuccessListener { doc ->
-                if (doc != null && doc.exists()) {
-                    val expense = doc.toObject(Expense::class.java) ?: return@addOnSuccessListener
+                // 🔑 Fetch user names for all UIDs
+                val uids = (expense?.paidBy?.keys ?: emptySet()) + (expense?.splitBetween?.keys ?: emptySet())
+                val nameMap = mutableMapOf<String, String>()
 
-                    Log.d("ExpenseDetailVM", "Raw paidBy: ${expense.paidBy}")
-                    Log.d("ExpenseDetailVM", "Raw splitBetween: ${expense.splitBetween}")
-
-                    val userIds = (expense.paidBy.keys + expense.splitBetween.keys).toSet()
-                    Log.d("ExpenseDetailVM", "Unique userIds: $userIds")
-
-                    fetchUserNames(userIds) { nameMap ->
-                        _nameMap.value = nameMap
-
-                        val updatedPaidBy = expense.paidBy.mapKeys { (uid, _) ->
-                            nameMap[uid] ?: uid
-                        }
-                        val updatedSplitBetween = expense.splitBetween.mapKeys { (uid, _) ->
-                            nameMap[uid] ?: uid
-                        }
-
-                        Log.d("ExpenseDetailVM", "Updated paidBy: $updatedPaidBy")
-                        Log.d("ExpenseDetailVM", "Updated splitBetween: $updatedSplitBetween")
-
-                        _expense.value = expense.copy(
-                            paidBy = updatedPaidBy,
-                            splitBetween = updatedSplitBetween
-                        )
-                    }
+                for (uid in uids) {
+                    val snapshot = db.child("users").child(uid).get().await()
+                    val name = snapshot.child("name").getValue(String::class.java) ?: uid
+                    nameMap[uid] = name
                 }
+                _userNameMap.value = nameMap
             }
-            .addOnFailureListener { e ->
-                Log.e("ExpenseDetailVM", "Error fetching expense", e)
-            }
-    }
-
-    private fun fetchUserNames(userIds: Set<String>, onComplete: (Map<String, String>) -> Unit) {
-        if (userIds.isEmpty()) {
-            onComplete(emptyMap())
-            return
         }
-
-        val db = FirebaseFirestore.getInstance()
-        db.collection("users")
-            .whereIn(FieldPath.documentId(), userIds.toList())
-            .get()
-            .addOnSuccessListener { snapshot ->
-                val nameMap = snapshot.documents.associate { doc ->
-                    doc.id to (doc.getString("name") ?: "Unknown")
-                }
-                onComplete(nameMap)
-            }
-            .addOnFailureListener {
-                Log.e("ExpenseDetailVM", "Error fetching user names", it)
-                onComplete(emptyMap())
-            }
     }
-}

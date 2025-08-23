@@ -31,6 +31,7 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.splitmoney.IconDescription.fetchIconUrl
 import com.example.splitmoney.R
+import com.example.splitmoney.dataclass.Expense
 import com.google.firebase.firestore.FirebaseFirestore
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,43 +102,31 @@ fun AddExpenseScreen(
                         } else {
                             viewModel.title = description.trim()
 
-                            val expense = mutableMapOf<String, Any>(
-                                "expenseId" to System.currentTimeMillis().toString(),
-                                "groupId" to groupId,
-                                "title" to viewModel.title,
-                                "amount" to amountValue,
-                                "timestamp" to System.currentTimeMillis(),
-                                "splitType" to viewModel.splitType,
-                                "splitBetween" to (viewModel.splitMap.value ?: emptyMap<String, Double>())
+                            val expenseId = System.currentTimeMillis().toString()
+
+                            val expense = Expense(
+                                expenseId = expenseId,
+                                groupId = groupId ?: "",
+                                title = viewModel.title,
+                                amount = amountValue.toFloat(),
+                                timestamp = System.currentTimeMillis(),
+                                splitBetween = viewModel.splitMap.value ?: emptyMap(),
+                                paidBy = if (viewModel.paidBy.value == "multiple") {
+                                    viewModel.whoPaidMap.value.filterKeys { it.isNotBlank() }
+                                } else {
+                                    val uid = viewModel.paidBy.value ?: viewModel.currentUser.uid
+                                    mapOf(uid to amountValue)
+                                }
                             )
 
-                            // --- For PaidBy ---
-                            if (viewModel.paidBy.value == "multiple") {
-                                val paidByMap = viewModel.whoPaidMap.value
-                                    .mapKeys { (uid, _) -> viewModel.userNameMap[uid] ?: uid }
-                                    .filterKeys { it.isNotBlank() }   // ✅ avoid ""
-                                expense["paidBy"] = paidByMap
-                            } else {
-                                val uid = viewModel.paidBy.value ?: viewModel.currentUser.uid
-                                val name = viewModel.userNameMap[uid] ?: viewModel.currentUser.name
-                                if (name.isNotBlank()) {  // ✅ safeguard
-                                    expense["paidBy"] = mapOf(name to amountValue)
-                                }
-                            }
-
-                            val splitBetweenWithNames = viewModel.splitMap.value
-                                .mapKeys { (uid, _) -> viewModel.userNameMap[uid] ?: uid }
-                                .filterKeys { it.isNotBlank() }   // ✅ remove empty keys
-
-                            expense["splitBetween"] = splitBetweenWithNames
-
-// 🔍 Debug log here
+                            // 🔍 Debug log
                             Log.d("FirestoreExpense", "Saving expense: $expense")
+
                             FirebaseFirestore.getInstance()
                                 .collection("groups")
                                 .document(groupId ?: "")
                                 .collection("expenses")
-                                .document(expense["expenseId"].toString())
+                                .document(expenseId)
                                 .set(expense)
                                 .addOnSuccessListener {
                                     viewModel.reset()
@@ -156,6 +145,7 @@ fun AddExpenseScreen(
                     }) {
                         Icon(Icons.Filled.Check, contentDescription = "Save")
                     }
+
 
                 }
             )

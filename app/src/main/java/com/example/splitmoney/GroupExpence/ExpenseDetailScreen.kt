@@ -60,6 +60,12 @@ fun ExpenseDetailScreen(
     viewModel: ExpenseDetailViewModel = viewModel()
 ) {
     val expense = viewModel.expense.observeAsState().value
+    val userNameMap = viewModel.userNameMap.observeAsState(emptyMap()).value
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchExpense(groupId, expenseId)
+    }
+
 
     LaunchedEffect(Unit) {
         viewModel.fetchExpense(groupId, expenseId)
@@ -79,13 +85,16 @@ fun ExpenseDetailScreen(
             CircularProgressIndicator()
         }
     } else {
-        ExpenseDetailContent(expense, onBack, iconPainter)
+        ExpenseDetailContent(expense, userNameMap, onBack, iconPainter)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpenseDetailContent(expense: Expense, onBack: () -> Unit, iconPainter: Painter) {
+fun ExpenseDetailContent(expense: Expense,
+                         userNameMap: Map<String, String>,
+                         onBack: () -> Unit,
+                         iconPainter: Painter) {
     Scaffold(
         topBar = {
             // Custom top strip instead of default TopAppBar
@@ -150,7 +159,7 @@ fun ExpenseDetailContent(expense: Expense, onBack: () -> Unit, iconPainter: Pain
             // Split mapping visualization
 
             Spacer(Modifier.height(8.dp))
-            SplitMapping(expense)
+            SplitMapping(expense, userNameMap)
 
 
             Spacer(Modifier.height(20.dp))
@@ -174,32 +183,34 @@ fun ExpenseDetailContent(expense: Expense, onBack: () -> Unit, iconPainter: Pain
 }
 
 @Composable
-fun SplitMapping(expense: Expense) {
+fun SplitMapping(expense: Expense, userNameMap: Map<String, String>) {
+    val payers = expense.paidBy.entries.toList()
+
     Column {
-        expense.paidBy.forEach { (payer, paidAmount) ->
-            // Payer Row
+        if (payers.size == 1) {
+            // ✅ Case 1: Only one payer
+            val (payerUid, paidAmount) = payers.first()
+            val payerName = userNameMap[payerUid] ?: payerUid
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AvatarCircle(payer)
+                AvatarCircle(payerName)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "$payer paid ₹${"%.2f".format(paidAmount)}",
+                    text = "$payerName paid ₹${"%.2f".format(paidAmount)}",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 19.sp // ⬅ Bigger text here
+                    fontSize = 19.sp
                 )
             }
 
-            // Mapping lines to each owed person
-            Column(
-                modifier = Modifier
-                    .padding(start = 20.dp)
-            ) {
-                expense.splitBetween.forEach { (person, oweAmount) ->
+            // List who owes
+            Column(modifier = Modifier.padding(start = 20.dp)) {
+                expense.splitBetween.forEach { (personUid, oweAmount) ->
                     if (oweAmount > 0f) {
+                        val personName = userNameMap[personUid] ?: personUid
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 4.dp)
                         ) {
-                            // Vertical + horizontal connector line
                             Box(
                                 modifier = Modifier
                                     .width(2.dp)
@@ -207,13 +218,57 @@ fun SplitMapping(expense: Expense) {
                                     .background(Color.Gray)
                             )
                             Spacer(Modifier.width(8.dp))
-                            AvatarCircle(person)
+                            AvatarCircle(personName)
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "$person owes ₹${"%.2f".format(oweAmount)}",
-                                fontSize = 19.sp // ⬅ Slightly bigger for better readability
+                                "$personName owes ₹${"%.2f".format(oweAmount)}",
+                                fontSize = 19.sp
                             )
                         }
+                    }
+                }
+            }
+        } else {
+            // ✅ Case 2: Multiple payers
+            Text(
+                text = "Multiple people paid:",
+                fontWeight = FontWeight.Bold,
+                fontSize = 19.sp
+            )
+
+            payers.forEach { (payerUid, paidAmount) ->
+                val payerName = userNameMap[payerUid] ?: payerUid
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AvatarCircle(payerName)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "$payerName paid ₹${"%.2f".format(paidAmount)}",
+                        fontSize = 18.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Split details:",
+                fontWeight = FontWeight.Bold,
+                fontSize = 19.sp
+            )
+
+            // List who owes
+            expense.splitBetween.forEach { (personUid, oweAmount) ->
+                if (oweAmount > 0f) {
+                    val personName = userNameMap[personUid] ?: personUid
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        AvatarCircle(personName)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "$personName owes ₹${"%.2f".format(oweAmount)}",
+                            fontSize = 18.sp
+                        )
                     }
                 }
             }

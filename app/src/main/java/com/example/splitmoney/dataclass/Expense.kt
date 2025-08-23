@@ -5,9 +5,10 @@ data class Expense(
     val amount: Float = 0f,
     val groupId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    val splitBetween: Map<String, Double> = emptyMap(),
-    val paidBy: Map<String, Double> = emptyMap(),
+    val splitBetween: Map<String, Double> = emptyMap(), // uid -> share
+    val paidBy: Map<String, Double> = emptyMap()        // uid -> amount paid
 )
+
 
 data class Payer(
     val amount: Double = 0.0,
