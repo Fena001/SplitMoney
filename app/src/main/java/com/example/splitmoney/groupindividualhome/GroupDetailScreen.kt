@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -50,6 +51,7 @@ import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Date
 import com.example.splitmoney.R
+import com.example.splitmoney.dataclass.BalanceSummary
 
 
 @Composable
@@ -65,8 +67,7 @@ fun GroupDetailScreen(
     onAddExpense: () -> Unit,
     onShareGroupLink: () -> Unit
 ) {
-    val expenses by viewModel.expenses.collectAsState()
-    val members by viewModel.members.collectAsState()
+
 
     val groupTypeIcon = when (groupType) {
         "Trip" -> Icons.Default.Flight
@@ -79,6 +80,18 @@ fun GroupDetailScreen(
     LaunchedEffect(Unit) {
         viewModel.fetchExpensesForGroup(groupId)
     }
+
+    val expenses by viewModel.expenses.collectAsState()
+    val members by viewModel.members.collectAsState()
+
+    val currentUid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+
+    LaunchedEffect(expenses, members, currentUid) {
+        if (currentUid.isNotEmpty() && members.isNotEmpty()) {
+            viewModel.calculateBalanceSummary(currentUid, members, expenses)
+        }
+    }
+    val balanceSummary by viewModel.balanceSummary.collectAsState()
 
     Scaffold(
         floatingActionButton = {
@@ -165,7 +178,9 @@ fun GroupDetailScreen(
                 onShareGroupLink = onShareGroupLink
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(Modifier.height(18.dp))
+            balanceSummary?.let { BalanceSummarySection(it) }
+            Spacer(Modifier.height(16.dp))
 
             // Action Buttons
             Row(
@@ -446,6 +461,51 @@ fun ExpenseItem(
                 Text(status, fontSize = 12.sp, color = color)
                 Text(amountDisplay, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = color)
             }
+        }
+    }
+}
+
+@Composable
+fun BalanceSummarySection(summary: BalanceSummary) {
+    val owedColor = Color(0xFF2ECC71)
+    val owesColor = Color(0xFFE74C3C)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1E1E1E))
+            .padding(16.dp)
+    ) {
+        // Net line
+        Text(
+            text = if (summary.netBalance >= 0)
+                "You are owed ₹${"%.2f".format(summary.netBalance)}"
+            else
+                "You owe ₹${"%.2f".format(-summary.netBalance)}",
+            color = if (summary.netBalance >= 0) owedColor else owesColor,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // People who owe you
+        summary.topDebtsOwedToYou.forEach {
+            Text("${it.memberName} owes you ₹${"%.2f".format(it.amount)}",
+                color = owedColor, fontSize = 14.sp)
+        }
+
+        // People you owe
+        summary.topDebtsYouOwe.forEach {
+            Text("You owe ${it.memberName} ₹${"%.2f".format(it.amount)}",
+                color = owesColor, fontSize = 14.sp)
+        }
+
+        if (summary.otherBalancesCount > 0) {
+            Text("Plus ${summary.otherBalancesCount} other balances",
+                color = Color.Gray, fontSize = 14.sp, fontStyle = FontStyle.Italic)
         }
     }
 }

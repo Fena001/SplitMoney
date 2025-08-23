@@ -213,7 +213,7 @@ fun HomeScreen(
 
             // Dynamic List Content
             when (selectedTab) {
-              0 -> FriendList(friends, navController)
+                0 -> FriendList(friends, navController)
                 1 -> GroupList(groups, navController)
 //                2 -> ActivityList()
             }
