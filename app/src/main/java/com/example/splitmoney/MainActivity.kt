@@ -99,10 +99,10 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         expenseFlowViewModel = expenseFlowViewModel,
                         onBack = {
-                            navController.previousBackStackEntry
-                                ?.savedStateHandle
-                                ?.set("selectedTab", 1) // 1 means GROUPS tab
-                            navController.popBackStack()
+                            navController.navigate("home") {
+                                popUpTo("home") { inclusive = true } // clears everything above home
+                                launchSingleTop = true               // avoid multiple copies of home
+                            }
                         },
                         onAddMembers = {
                             val encodedName = Uri.encode(groupName)
