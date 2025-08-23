@@ -66,10 +66,12 @@ class GroupRepository(
                 expense.paidBy.size == 1 -> {
                     val payerId = expense.paidBy.keys.first()
                     val payerName = getUserName(payerId)
-                    "$payerName paid ₹%.2f".format(expense.paidBy[payerId])
+                    val payerAmount = expense.paidBy[payerId] ?: 0.0
+                    "$payerName paid ₹%.2f".format(payerAmount)
                 }
                 expense.paidBy.size > 1 -> {
-                    "${expense.paidBy.size} people paid ₹%.2f".format(expense.paidBy.values.sum())
+                    val totalPaid = expense.paidBy.values.sum()
+                    "${expense.paidBy.size} people paid ₹%.2f".format(totalPaid)
                 }
                 else -> ""
             }

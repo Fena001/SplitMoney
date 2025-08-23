@@ -356,10 +356,9 @@ fun ExpenseItem(
     usersMap: Map<String, User>,
     onClick: () -> Unit
 ) {
-    val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0f
-    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0f
+    val userPaidAmount = expense.paidBy[currentUser.uid]?: 0.0   // keep Double
+    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0.0    // also Double
     val net = userPaidAmount - userOwesAmount
-
     val (status, color, amountDisplay) = when {
         net > 0 -> Triple("you lent", Color(0xFF2ECC71), "+₹%.2f".format(net))
         net < 0 -> Triple("you borrowed", Color(0xFFE74C3C), "-₹%.2f".format(-net))

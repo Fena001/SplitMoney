@@ -310,8 +310,11 @@ fun GroupList(groups: List<Group>, navController: NavController) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        val encodedName = Uri.encode(group.name)
-                        navController.navigate("group_detail/${group.groupId}/$encodedName")
+                        val encodedName = Uri.encode(group.name ?: "")
+                        val encodedType = Uri.encode(group.type ?: "")
+                        navController.navigate(
+                            "group_detail/${group.groupId}/$encodedName/$encodedType"
+                        )
                     }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically

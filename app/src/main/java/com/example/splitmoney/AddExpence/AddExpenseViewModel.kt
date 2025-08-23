@@ -26,13 +26,3 @@ class AddExpenseViewModel(groupId: String) : ViewModel() {
             })
     }
 }
-
-class AddExpenseViewModelFactory(private val groupId: String) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AddExpenseViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return AddExpenseViewModel(groupId) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}

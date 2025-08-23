@@ -9,7 +9,7 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+
 
 class ExpenseFlowViewModel(
     private val savedStateHandle: SavedStateHandle
@@ -42,6 +42,7 @@ class ExpenseFlowViewModel(
     fun updateSplitType(type: String) {
         splitType = type
     }
+
 
     // ------------------- Amount and Description -------------------
     var amountState = mutableStateOf(savedStateHandle["amount"] ?: "")
@@ -131,6 +132,8 @@ class ExpenseFlowViewModel(
     fun setSplitBetweenMap(map: Map<String, Double>) {
         _splitBetweenMap.value = map
     }
+    val userNameMap: Map<String, String>
+        get() = _selectedMembers.value.associate { it.uid to it.name }
 
     // ------------------- Reset -------------------
     fun reset() {

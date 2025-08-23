@@ -10,6 +10,7 @@ import com.example.splitmoney.Calculation.isTotalValid
 import com.example.splitmoney.Calculation.parsePercentageSplit
 import com.example.splitmoney.Calculation.parseUnequalSplit
 import com.example.splitmoney.dataclass.Expense
+import com.example.splitmoney.dataclass.Payer
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 
@@ -123,8 +124,8 @@ class FriendExpenseViewModel : ViewModel() {
             expenseId = System.currentTimeMillis().toString(),
             title = description,
             amount = totalAmount,
-            paidBy = whoPaidMap.mapValues { it.value.toFloat() },
-            splitBetween = splitMap.mapValues { it.value.toFloat() },
+            paidBy = whoPaidMap.mapValues { (_, value) -> value },
+            splitBetween = splitMap.mapValues { it.value.toDouble() },
             timestamp = System.currentTimeMillis()
         )
 

@@ -285,8 +285,8 @@ fun ExpenseItem(
     currentUser: User,
     usersMap: Map<String, User>
 ) {
-    val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0f
-    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0f
+    val userPaidAmount = expense.paidBy[currentUser.uid] ?: 0.0   // keep Double
+    val userOwesAmount = expense.splitBetween[currentUser.uid] ?: 0.0    // also Double
     val net = userPaidAmount - userOwesAmount
 
     val (status, color, amountDisplay) = when {

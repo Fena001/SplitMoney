@@ -39,10 +39,13 @@ class HomeViewModel : ViewModel() {
                     val members = groupSnapshot.child("members").value as? Map<String, Boolean> ?: return@forEach
                     if (members.containsKey(userId)) {
                         val name = groupSnapshot.child("name").getValue(String::class.java) ?: return@forEach
-                        val icon = groupSnapshot.child("icon").getValue(String::class.java) ?: ""
+                        //val icon = groupSnapshot.child("icon").getValue(String::class.java) ?: ""
                         val type = groupSnapshot.child("type").getValue(String::class.java) ?: ""
-                        val netBalance = groupSnapshot.child("balances").child(userId).getValue(Double::class.java)?.toFloat() ?: 0f
+                       // val netBalance = groupSnapshot.child("balances").child(userId).getValue(Double::class.java)?.toFloat() ?: 0f
                         val otherParty = groupSnapshot.child("otherParty").getValue(String::class.java) ?: ""
+                        val icon = groupSnapshot.child("imageUrl").getValue(String::class.java) ?: ""
+                        val netBalance = groupSnapshot.child("netBalance").getValue(Double::class.java)?.toFloat() ?: 0f
+
 
                         groupList.add(
                             Group(

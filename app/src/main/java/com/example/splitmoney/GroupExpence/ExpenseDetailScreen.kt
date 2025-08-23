@@ -240,23 +240,23 @@ fun AvatarCircle(name: String) {
 
 
 
-@Preview(showBackground = true)
-@Composable
-fun ExpenseDetailContentPreview() {
-    val mockExpense = Expense(
-
-        title = "Dinner at Pizza Place",
-        amount = 1200f, // Float value
-        paidBy = mapOf("UserA" to 1200f), // Floats here too
-        splitBetween = mapOf("UserA" to 600f, "UserB" to 600f) // Floats here
-    )
-
-    val mockPainter: Painter = painterResource(id = R.drawable.img)
-
-    ExpenseDetailContent(
-        expense = mockExpense,
-        onBack = {},
-        iconPainter = mockPainter
-    )
-}
-
+//@Preview(showBackground = true)
+//@Composable
+//fun ExpenseDetailContentPreview() {
+//    val mockExpense = Expense(
+//
+//        title = "Dinner at Pizza Place",
+//        amount = 1200f, // Float value
+//        paidBy = mapOf("UserA" to 1200f), // Floats here too
+//        splitBetween = mapOf("UserA" to 600f, "UserB" to 600f) // Floats here
+//    )
+//
+//    val mockPainter: Painter = painterResource(id = R.drawable.img)
+//
+//    ExpenseDetailContent(
+//        expense = mockExpense,
+//        onBack = {},
+//        iconPainter = mockPainter
+//    )
+//}
+//

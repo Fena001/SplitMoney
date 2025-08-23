@@ -2,6 +2,7 @@ package com.example.splitmoney.AddExpence
 
 import User
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -110,14 +111,28 @@ fun AddExpenseScreen(
                                 "splitBetween" to (viewModel.splitMap.value ?: emptyMap<String, Double>())
                             )
 
+                            // --- For PaidBy ---
                             if (viewModel.paidBy.value == "multiple") {
-                                expense["paidBy"] = viewModel.whoPaidMap.value ?: emptyMap<String, Double>()
+                                val paidByMap = viewModel.whoPaidMap.value
+                                    .mapKeys { (uid, _) -> viewModel.userNameMap[uid] ?: uid }
+                                    .filterKeys { it.isNotBlank() }   // ✅ avoid ""
+                                expense["paidBy"] = paidByMap
                             } else {
                                 val uid = viewModel.paidBy.value ?: viewModel.currentUser.uid
-                                expense["paidBy"] = mapOf(uid to amountValue)
+                                val name = viewModel.userNameMap[uid] ?: viewModel.currentUser.name
+                                if (name.isNotBlank()) {  // ✅ safeguard
+                                    expense["paidBy"] = mapOf(name to amountValue)
+                                }
                             }
 
+                            val splitBetweenWithNames = viewModel.splitMap.value
+                                .mapKeys { (uid, _) -> viewModel.userNameMap[uid] ?: uid }
+                                .filterKeys { it.isNotBlank() }   // ✅ remove empty keys
 
+                            expense["splitBetween"] = splitBetweenWithNames
+
+// 🔍 Debug log here
+                            Log.d("FirestoreExpense", "Saving expense: $expense")
                             FirebaseFirestore.getInstance()
                                 .collection("groups")
                                 .document(groupId ?: "")
